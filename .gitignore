@@ -1,0 +1,26 @@
+# .NET build output
+bin/
+obj/
+artifacts/
+TestResults/
+.vs/
+.idea/
+.vscode/
+.dotnet-cli/
+.dotnet-local/
+
+# Local application state
+*.user
+*.suo
+*.log
+settings.local.json
+backups/
+
+# Never commit game databases or their sidecar/backup files
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.db.bak
+*.sav
+*.sav.bak

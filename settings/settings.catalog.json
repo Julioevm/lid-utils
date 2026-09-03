@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "2026.09.1",
+  "settings": [
+    {
+      "sourceTable": "master_const_int",
+      "key": "ABDUCT_GUARD_TIME",
+      "label": "Abduction guard duration",
+      "description": "Duration used by the abduction guard timing rule. The exact gameplay effect is still being verified.",
+      "category": "TDM",
+      "valueType": "integer",
+      "rawUnits": "seconds",
+      "displayUnits": "seconds",
+      "minimum": null,
+      "maximum": null,
+      "step": 1,
+      "defaultDisplayFormat": "0",
+      "conversion": null,
+      "risk": "experimental"
+    }
+  ]
+}

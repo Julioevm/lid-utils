@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LidUtils.Core\LidUtils.Core.csproj" />
+    <ProjectReference Include="..\LidUtils.Data\LidUtils.Data.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\..\settings\settings.catalog.json" Link="settings.catalog.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>
