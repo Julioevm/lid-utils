@@ -1,0 +1,66 @@
+name: Release Windows build
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and release Windows app
+    runs-on: windows-latest
+    env:
+      MSBuildEnableWorkloadResolver: 'false'
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore LidUtils.sln
+
+      - name: Run tests
+        run: dotnet test LidUtils.sln --no-restore --configuration Release
+
+      - name: Publish self-contained Windows app
+        run: >
+          dotnet publish src/LidUtils.App/LidUtils.App.csproj
+          --configuration Release
+          --no-restore
+          --runtime win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=None
+          -p:DebugSymbols=false
+          --output publish
+
+      - name: Package release
+        shell: pwsh
+        run: Compress-Archive -Path publish/* -DestinationPath LidUtils-win-x64.zip
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: build-${{ github.run_number }}
+        shell: pwsh
+        run: |
+          gh release view $env:TAG 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG LidUtils-win-x64.zip --clobber
+          }
+          else {
+            gh release create $env:TAG LidUtils-win-x64.zip `
+              --target ${{ github.sha }} `
+              --title "Windows build $env:TAG" `
+              --latest `
+              --generate-notes
+          }
