@@ -29,8 +29,6 @@ public sealed record SettingEntry(
     public string Description => Definition?.Description ?? "No curated description is available for this setting yet.";
     public string Units => Definition?.DisplayUnits ?? Definition?.RawUnits ?? "raw game value";
     public string RawUnits => Definition?.RawUnits ?? "raw game value";
-    public string RiskLevel => Definition?.Risk.ToString() ?? "Undocumented · experimental";
-    public string DocumentationStatus => IsDocumented ? "Catalogued" : "Undocumented";
     public string DisplayValue => Definition?.FormatDisplayValue(RawValue, IsNull) ?? RawValue;
     public string DisplayValueWithUnits => IsNull ? DisplayValue : $"{DisplayValue} {Units}";
 }

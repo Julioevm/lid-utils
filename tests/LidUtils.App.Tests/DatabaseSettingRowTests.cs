@@ -15,7 +15,7 @@ public sealed class DatabaseSettingRowTests
         Assert.False(row.IsStaged);
         Assert.Contains("Database key: PLAYER_HEALTH", row.DetailsToolTip);
         Assert.Contains("Source: master_const_int", row.DetailsToolTip);
-        Assert.Contains("Undocumented", row.DetailsToolTip);
+        Assert.DoesNotContain("Status:", row.DetailsToolTip);
     }
 
     [Fact]

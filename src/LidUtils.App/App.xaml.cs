@@ -24,8 +24,21 @@ public partial class App : Application
             catalog = SettingsCatalog.Empty;
         }
 
+        SaveValueCatalog saveCatalog;
+        try
+        {
+            saveCatalog = SaveCatalogLoader.Load(Path.Combine(AppContext.BaseDirectory, "saves.catalog.json"));
+        }
+        catch (CatalogValidationException exception)
+        {
+            MessageBox.Show(exception.Message + Environment.NewLine + Environment.NewLine +
+                "The application will continue with all save values marked undocumented.",
+                "Invalid saves catalog", MessageBoxButton.OK, MessageBoxImage.Warning);
+            saveCatalog = SaveValueCatalog.Empty;
+        }
+
         var validator = new DatabaseValidator();
-        var saveEditor = new SaveEditorViewModel(new SaveFileService());
+        var saveEditor = new SaveEditorViewModel(new SaveFileService(), saveCatalog);
         var viewModel = new MainWindowViewModel(
             new DatabaseDiscoveryService(),
             validator,

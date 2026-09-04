@@ -12,5 +12,8 @@
     <Content Include="..\..\settings\settings.catalog.json" Link="settings.catalog.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="..\..\settings\saves.catalog.json" Link="saves.catalog.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>

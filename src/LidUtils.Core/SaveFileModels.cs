@@ -14,9 +14,14 @@ public sealed record SaveValueEntry(
     string Pointer,
     string DisplayPath,
     SaveValueType Type,
-    string Value)
+    string Value,
+    SaveValueDefinition? Definition = null)
 {
     public string TypeLabel => Type.ToString();
+    public bool IsDocumented => Definition is not null;
+    public string Label => Definition?.Label ?? DisplayPath;
+    public string Category => Definition?.Category ?? "Undocumented";
+    public string Description => Definition?.Description ?? "No curated description is available for this save value yet.";
 }
 
 public sealed record SaveFileSnapshot(

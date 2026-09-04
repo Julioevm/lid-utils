@@ -17,6 +17,22 @@
       "defaultDisplayFormat": "0",
       "conversion": null,
       "risk": "experimental"
+    },
+    {
+      "sourceTable": "master_const_int",
+      "key": "ELEVATOR_BASIC_PRICE",
+      "label": "Elevator basic price",
+      "description": "This is the base price that costs to use the elevator, plus ELEVATOR_FLOOR_PRICE * Floor.",
+      "category": "Economy",
+      "valueType": "integer",
+      "rawUnits": "kill coins",
+      "displayUnits": null,
+      "minimum": 0,
+      "maximum": null,
+      "step": 1,
+      "defaultDisplayFormat": "0",
+      "conversion": null,
+      "risk": "low"
     }
   ]
 }

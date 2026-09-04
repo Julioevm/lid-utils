@@ -37,8 +37,7 @@ public sealed class DatabaseSettingRow : INotifyPropertyChanged
         $"Database key: {Entry.Key}",
         Entry.Description,
         $"Raw units: {Entry.RawUnits}",
-        $"Type: {Entry.TypeLabel} · Source: {Entry.SourceTable}",
-        $"Risk: {Entry.RiskLevel} · Status: {Entry.DocumentationStatus}");
+        $"Type: {Entry.TypeLabel} · Source: {Entry.SourceTable}");
 
     public string DraftValue
     {

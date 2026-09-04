@@ -10,6 +10,7 @@ namespace LidUtils.App;
 public sealed class SaveEditorViewModel : INotifyPropertyChanged
 {
     private readonly ISaveFileService _saveFileService;
+    private readonly SaveValueCatalog _catalog;
     private readonly SaveChangeStagingService _staging = new();
     private readonly HashSet<string> _favoritePointers = new(StringComparer.Ordinal);
     private IReadOnlyList<SaveValueRow> _allValues = [];
@@ -25,7 +26,11 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     private bool _isBusy;
     private bool _isApplying;
 
-    public SaveEditorViewModel(ISaveFileService saveFileService) => _saveFileService = saveFileService;
+    public SaveEditorViewModel(ISaveFileService saveFileService, SaveValueCatalog? catalog = null)
+    {
+        _saveFileService = saveFileService;
+        _catalog = catalog ?? SaveValueCatalog.Empty;
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public event Action<IReadOnlyList<string>>? FavoritePointersChanged;
@@ -202,7 +207,8 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         _snapshot = snapshot;
         SavePath = snapshot.Path;
         IsShowingStagedChanges = false;
-        _allValues = snapshot.Entries.OrderBy(value => value.DisplayPath, StringComparer.Ordinal)
+        var catalogResult = _catalog.Apply(snapshot.Entries);
+        _allValues = catalogResult.Entries.OrderBy(value => value.DisplayPath, StringComparer.Ordinal)
             .Select(value => new SaveValueRow(value, _favoritePointers.Contains(value.Pointer), StageDraft)).ToArray();
         SearchText = string.Empty;
         ApplyFilter();
@@ -262,6 +268,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
             {
                 values = values.Where(value =>
                     value.DisplayPath.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    value.Label.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                     value.CurrentValue.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                     value.DraftValue.Contains(term, StringComparison.OrdinalIgnoreCase));
             }
@@ -319,7 +326,12 @@ public sealed class SaveValueRow : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     public SaveValueEntry Entry { get; }
     public string DisplayPath => Entry.DisplayPath;
+    public string Label => Entry.Label;
     public string CurrentValue => Entry.Value;
+    public string DetailsToolTip => string.Join(Environment.NewLine,
+        $"JSON path: {Entry.Pointer}",
+        Entry.Description,
+        $"Type: {Entry.TypeLabel}");
     public string DraftValue
     {
         get => _draftValue;

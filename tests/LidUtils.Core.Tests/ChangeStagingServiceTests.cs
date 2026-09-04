@@ -66,7 +66,7 @@ public sealed class ChangeStagingServiceTests
     }
 
     [Fact]
-    public void Stage_SupportsStringsAndUndocumentedWarning()
+    public void Stage_SupportsStringsWithoutUndocumentedWarning()
     {
         var service = new ChangeStagingService();
         var entry = Entry("TEXT", "old", SettingValueType.String);
@@ -75,7 +75,7 @@ public sealed class ChangeStagingServiceTests
 
         Assert.True(change.IsValid);
         Assert.Equal("new text", change.ProposedRawValue);
-        Assert.Contains(change.Warnings, warning => warning.Contains("not yet described"));
+        Assert.DoesNotContain(change.Warnings, warning => warning.Contains("not yet described"));
     }
 
     [Fact]
