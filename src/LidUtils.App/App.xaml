@@ -200,28 +200,15 @@
                     <ControlTemplate TargetType="ScrollBar">
                         <Border Background="{TemplateBinding Background}" BorderBrush="{StaticResource BorderSubtleBrush}" BorderThickness="1">
                             <Grid>
-                                <Track x:Name="VerticalTrack" Orientation="Vertical" IsDirectionReversed="True">
+                                <Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}" IsDirectionReversed="True">
                                     <Track.DecreaseRepeatButton>
-                                        <RepeatButton Command="{x:Static ScrollBar.PageUpCommand}">
+                                        <RepeatButton x:Name="DecreasePageButton" Command="{x:Static ScrollBar.PageUpCommand}">
                                             <RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent" /></ControlTemplate></RepeatButton.Template>
                                         </RepeatButton>
                                     </Track.DecreaseRepeatButton>
                                     <Track.Thumb><Thumb /></Track.Thumb>
                                     <Track.IncreaseRepeatButton>
-                                        <RepeatButton Command="{x:Static ScrollBar.PageDownCommand}">
-                                            <RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent" /></ControlTemplate></RepeatButton.Template>
-                                        </RepeatButton>
-                                    </Track.IncreaseRepeatButton>
-                                </Track>
-                                <Track x:Name="HorizontalTrack" Orientation="Horizontal" Visibility="Collapsed">
-                                    <Track.DecreaseRepeatButton>
-                                        <RepeatButton Command="{x:Static ScrollBar.PageLeftCommand}">
-                                            <RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent" /></ControlTemplate></RepeatButton.Template>
-                                        </RepeatButton>
-                                    </Track.DecreaseRepeatButton>
-                                    <Track.Thumb><Thumb /></Track.Thumb>
-                                    <Track.IncreaseRepeatButton>
-                                        <RepeatButton Command="{x:Static ScrollBar.PageRightCommand}">
+                                        <RepeatButton x:Name="IncreasePageButton" Command="{x:Static ScrollBar.PageDownCommand}">
                                             <RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent" /></ControlTemplate></RepeatButton.Template>
                                         </RepeatButton>
                                     </Track.IncreaseRepeatButton>
@@ -229,7 +216,11 @@
                             </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="Orientation" Value="Horizontal"><Setter TargetName="VerticalTrack" Property="Visibility" Value="Collapsed" /><Setter TargetName="HorizontalTrack" Property="Visibility" Value="Visible" /></Trigger>
+                            <Trigger Property="Orientation" Value="Horizontal">
+                                <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False" />
+                                <Setter TargetName="DecreasePageButton" Property="Command" Value="{x:Static ScrollBar.PageLeftCommand}" />
+                                <Setter TargetName="IncreasePageButton" Property="Command" Value="{x:Static ScrollBar.PageRightCommand}" />
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
