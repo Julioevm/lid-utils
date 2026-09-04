@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
@@ -18,7 +19,7 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        await Task.WhenAll(_viewModel.DiscoverAsync(), _viewModel.SaveEditor.DiscoverAsync());
+        await _viewModel.DiscoverAsync();
     }
 
     private async void OnDiscover(object sender, RoutedEventArgs e)
@@ -29,6 +30,17 @@ public partial class MainWindow : Window
     private async void OnValidate(object sender, RoutedEventArgs e)
     {
         await _viewModel.ValidateCurrentAsync();
+    }
+
+    private void OnShowDatabaseInfo(object sender, RoutedEventArgs e)
+    {
+        MessageBox.Show(
+            $"{_viewModel.StatusTitle}{Environment.NewLine}{Environment.NewLine}" +
+            $"{_viewModel.StatusDetails}{Environment.NewLine}{Environment.NewLine}" +
+            _viewModel.MetadataDetails,
+            "Game database details",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
     }
 
     private async void OnBrowse(object sender, RoutedEventArgs e)
@@ -53,14 +65,22 @@ public partial class MainWindow : Window
         await _viewModel.LoadSelectedTablePreviewAsync();
     }
 
-    private async void OnToggleFavorite(object sender, RoutedEventArgs e)
-    {
-        await _viewModel.ToggleSelectedFavoriteAsync();
-    }
-
     private async void OnForgetRememberedDatabase(object sender, RoutedEventArgs e)
     {
         await _viewModel.ForgetRememberedDatabaseAsync();
+    }
+
+    private async void OnChangeGameInstallPath(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Select the LET IT DIE installation folder"
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            await _viewModel.SetGameInstallPathAsync(dialog.FolderName);
+        }
     }
 
     private async void OnClearFavorites(object sender, RoutedEventArgs e)
@@ -68,19 +88,14 @@ public partial class MainWindow : Window
         await _viewModel.ClearFavoritePreferencesAsync();
     }
 
-    private async void OnClearRecentSettings(object sender, RoutedEventArgs e)
+    private async void OnToggleDatabaseFavorite(object sender, RoutedEventArgs e)
     {
-        await _viewModel.ClearRecentSettingsAsync();
+        if (sender is Button { DataContext: DatabaseSettingRow row }) await _viewModel.ToggleFavoriteAsync(row);
     }
 
-    private async void OnStageChange(object sender, RoutedEventArgs e)
+    private void OnUndoDatabaseChange(object sender, RoutedEventArgs e)
     {
-        await _viewModel.StageSelectedChangeAsync();
-    }
-
-    private void OnResetSelectedChange(object sender, RoutedEventArgs e)
-    {
-        _viewModel.ResetSelectedChange();
+        if (sender is Button { DataContext: DatabaseSettingRow row }) _viewModel.UndoRowChange(row);
     }
 
     private void OnResetAllChanges(object sender, RoutedEventArgs e)
@@ -109,6 +124,29 @@ public partial class MainWindow : Window
         await _viewModel.SaveEditor.ReloadAsync();
     }
 
+    private async void OnExportSaveJson(object sender, RoutedEventArgs e)
+    {
+        var savePath = _viewModel.SaveEditor.SavePath;
+        if (!File.Exists(savePath)) return;
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "Export decoded save JSON",
+            Filter = "JSON files (*.json)|*.json|Text files (*.txt)|*.txt|All files (*.*)|*.*",
+            DefaultExt = ".json",
+            AddExtension = true,
+            CheckPathExists = true,
+            OverwritePrompt = true,
+            InitialDirectory = Path.GetDirectoryName(savePath),
+            FileName = $"{Path.GetFileNameWithoutExtension(savePath)}.json"
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            await _viewModel.SaveEditor.ExportJsonAsync(dialog.FileName);
+        }
+    }
+
     private void OnShowSaveInfo(object sender, RoutedEventArgs e)
     {
         MessageBox.Show(
@@ -123,19 +161,14 @@ public partial class MainWindow : Window
         _viewModel.SaveEditor.ClearSearch();
     }
 
-    private void OnStageSaveChange(object sender, RoutedEventArgs e)
+    private void OnUndoSaveChange(object sender, RoutedEventArgs e)
     {
-        _viewModel.SaveEditor.StageSelectedChange();
+        if (sender is Button { DataContext: SaveValueRow row }) _viewModel.SaveEditor.UndoChange(row);
     }
 
-    private void OnResetSaveChange(object sender, RoutedEventArgs e)
+    private void OnToggleSaveFavorite(object sender, RoutedEventArgs e)
     {
-        _viewModel.SaveEditor.ResetSelectedChange();
-    }
-
-    private void OnResetAllSaveChanges(object sender, RoutedEventArgs e)
-    {
-        _viewModel.SaveEditor.ResetAllChanges();
+        if (sender is Button { DataContext: SaveValueRow row }) _viewModel.SaveEditor.ToggleFavorite(row);
     }
 
     private async void OnApplySaveChanges(object sender, RoutedEventArgs e)

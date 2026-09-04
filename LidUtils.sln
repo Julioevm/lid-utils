@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LidUtils.Core.Tests", "test
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LidUtils.Data.Tests", "tests\LidUtils.Data.Tests\LidUtils.Data.Tests.csproj", "{19A1CA94-8FCF-4318-9ED1-E5BEFF35009D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LidUtils.App.Tests", "tests\LidUtils.App.Tests\LidUtils.App.Tests.csproj", "{CD0BCA6A-4418-4DC8-8EA2-3B8E7B9A5565}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +41,9 @@ Global
 		{19A1CA94-8FCF-4318-9ED1-E5BEFF35009D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{19A1CA94-8FCF-4318-9ED1-E5BEFF35009D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{19A1CA94-8FCF-4318-9ED1-E5BEFF35009D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CD0BCA6A-4418-4DC8-8EA2-3B8E7B9A5565}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CD0BCA6A-4418-4DC8-8EA2-3B8E7B9A5565}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CD0BCA6A-4418-4DC8-8EA2-3B8E7B9A5565}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CD0BCA6A-4418-4DC8-8EA2-3B8E7B9A5565}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
-

@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Data;
 using LidUtils.Core;
+using LidUtils.Data;
 
 namespace LidUtils.App;
 
@@ -30,13 +31,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _settingsSummary = "Validate a database to browse settings.";
     private string _schemaSummary = "No schema loaded.";
     private bool _isBusy;
-    private SettingEntry? _selectedSetting;
     private SchemaTable? _selectedSchemaTable;
     private DatabaseFileMetadata? _loadedMetadata;
-    private string _proposedValue = string.Empty;
-    private string _editorError = string.Empty;
-    private string _editorWarning = string.Empty;
     private bool _sourceDatabaseChanged;
+    private bool _isFavoritesOnly;
+    private long _settingsGeneration;
     private CancellationTokenSource? _operationCancellation;
 
     public MainWindowViewModel(
@@ -53,21 +52,20 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _browser = browser;
         _catalog = catalog;
         SaveEditor = saveEditor;
+        SaveEditor.FavoritePointersChanged += SaveFavoriteSavePointers;
         SettingsView = CollectionViewSource.GetDefaultView(Settings);
         SettingsView.Filter = FilterSetting;
-        SettingsView.SortDescriptions.Add(new SortDescription(nameof(SettingEntry.Key), ListSortDirection.Ascending));
+        SettingsView.SortDescriptions.Add(new SortDescription(nameof(DatabaseSettingRow.Key), ListSortDirection.Ascending));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public SaveEditorViewModel SaveEditor { get; }
-    public ObservableCollection<SettingEntry> Settings { get; } = [];
+    public ObservableCollection<DatabaseSettingRow> Settings { get; } = [];
     public ICollectionView SettingsView { get; }
     public ObservableCollection<string> Categories { get; } = ["All categories"];
     public IReadOnlyList<string> Types { get; } = ["All types", "Integer", "Float", "String"];
     public ObservableCollection<SchemaTable> SchemaTables { get; } = [];
     public ObservableCollection<TablePreviewRow> PreviewRows { get; } = [];
-    public ObservableCollection<SettingEntry> FavoriteSettings { get; } = [];
-    public ObservableCollection<SettingEntry> RecentSettings { get; } = [];
     public ObservableCollection<StagedSettingChange> PendingChanges { get; } = [];
 
     public string DatabasePath
@@ -90,11 +88,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ? "No database selection saved."
         : _preferences.LastDatabasePath;
     public int FavoriteCount => _favoriteIds.Count;
-    public int RecentSettingsCount => _preferences.RecentlyViewedSettingIds?.Count ?? 0;
     public string PreferencesFilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "LidUtils",
         "settings.json");
+    private string? SavedInstallRoot => string.IsNullOrWhiteSpace(_preferences.GameInstallPath)
+        ? null
+        : _preferences.GameInstallPath;
+    public string GameInstallPath => SavedInstallRoot ?? "No game installation folder saved.";
+    public string GameInstallDetails => SavedInstallRoot is null
+        ? "Once set, the saves folder and masters.db database are derived from this folder automatically."
+        : $"Saves: {GameDatabasePaths.GetSaveDataDirectory(SavedInstallRoot)}{Environment.NewLine}Database: {GameDatabasePaths.GetDatabasePath(SavedInstallRoot)}";
 
     public string SearchText
     {
@@ -114,45 +118,20 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         set { if (SetField(ref _selectedCategory, value)) SettingsView.Refresh(); }
     }
 
-    public SettingEntry? SelectedSetting
+    public bool IsFavoritesOnly
     {
-        get => _selectedSetting;
-        set
-        {
-            if (!SetField(ref _selectedSetting, value)) return;
-            OnPropertyChanged(nameof(HasSelectedSetting));
-            OnPropertyChanged(nameof(IsSelectedFavorite));
-            OnPropertyChanged(nameof(FavoriteButtonText));
-            LoadSelectedEditState();
-            if (value is not null) RecordRecentlyViewed(value);
-        }
+        get => _isFavoritesOnly;
+        set { if (SetField(ref _isFavoritesOnly, value)) SettingsView.Refresh(); }
     }
-    public bool IsSelectedFavorite => SelectedSetting is not null && _favoriteIds.Contains(SelectedSetting.Id);
-    public bool HasSelectedSetting => SelectedSetting is not null;
-    public string FavoriteButtonText => IsSelectedFavorite ? "Remove favorite" : "Add favorite";
-    public string ProposedValue
-    {
-        get => _proposedValue;
-        set
-        {
-            if (!SetField(ref _proposedValue, value)) return;
-            EditorError = string.Empty;
-            EditorWarning = string.Empty;
-        }
-    }
-    public string EditorError { get => _editorError; private set => SetField(ref _editorError, value); }
-    public string EditorWarning { get => _editorWarning; private set => SetField(ref _editorWarning, value); }
-    public string EditorLabel => SelectedSetting is null ? "Proposed raw value" : $"Proposed raw value ({SelectedSetting.TypeLabel})";
     public bool SourceDatabaseChanged
     {
         get => _sourceDatabaseChanged;
         private set
         {
-            if (SetField(ref _sourceDatabaseChanged, value)) OnPropertyChanged(nameof(CanStageSelected));
+            SetField(ref _sourceDatabaseChanged, value);
         }
     }
     public bool HasPendingChanges => _changeStaging.HasPendingChanges;
-    public bool CanStageSelected => HasSelectedSetting && !IsBusy && !SourceDatabaseChanged;
     public SchemaTable? SelectedSchemaTable { get => _selectedSchemaTable; set => SetField(ref _selectedSchemaTable, value); }
 
     public bool IsBusy
@@ -164,7 +143,6 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(CanInteract));
             OnPropertyChanged(nameof(HasDatabasePath));
             OnPropertyChanged(nameof(BusyVisibility));
-            OnPropertyChanged(nameof(CanStageSelected));
         }
     }
 
@@ -177,22 +155,49 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         await RunBusyAsync(async cancellationToken =>
         {
             StatusTitle = "Searching…";
-            StatusDetails = "Checking the requested default path and configured Steam libraries.";
+            StatusDetails = "Checking the saved game folder, the requested default path, and configured Steam libraries.";
             _preferences = await _preferencesStore.LoadAsync(cancellationToken);
             LoadPreferenceIds();
+            SaveEditor.LoadFavoritePointers(_preferences.FavoriteSaveValuePointers ?? []);
             OnPreferencesChanged();
-            var candidate = await _discoveryService.FindFirstExistingAsync(_preferences.LastDatabasePath, cancellationToken);
+            var candidate = await _discoveryService.FindFirstExistingAsync(
+                _preferences.LastDatabasePath,
+                _preferences.GameInstallPath,
+                cancellationToken);
             if (candidate is null)
             {
                 ClearBrowser("No database selected");
                 StatusTitle = "Database not found";
-                StatusDetails = "No masters.db was found automatically. Use Browse to select it manually.";
+                StatusDetails = "No masters.db was found automatically. Browse for it, or set the game installation folder in App settings.";
+                await SaveEditor.DiscoverAsync(GetSaveDirectory());
                 return;
             }
 
             DatabasePath = candidate.Path;
             await ValidateAndLoadAsync(candidate.Path, false, cancellationToken);
+            await SaveEditor.DiscoverAsync(GetSaveDirectory());
         });
+    }
+
+    /// <summary>
+    /// Stores a manually chosen game installation folder, then rediscovers the database and saves from it.
+    /// </summary>
+    public async Task SetGameInstallPathAsync(string path)
+    {
+        if (!Directory.Exists(path))
+        {
+            StatusTitle = "Game folder not found";
+            StatusDetails = $"The folder does not exist: {path}";
+            return;
+        }
+
+        await RunBusyAsync(async cancellationToken =>
+        {
+            _preferences = _preferences with { GameInstallPath = Path.GetFullPath(path) };
+            OnPreferencesChanged();
+            await SavePreferencesAsync(cancellationToken);
+        });
+        await DiscoverAsync();
     }
 
     public Task ValidateCurrentAsync() => !File.Exists(DatabasePath)
@@ -227,14 +232,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public void CancelPendingOperations() => _operationCancellation?.Cancel();
 
-    public async Task ToggleSelectedFavoriteAsync()
+    public async Task ToggleFavoriteAsync(DatabaseSettingRow row)
     {
-        if (SelectedSetting is null) return;
-        if (!_favoriteIds.Add(SelectedSetting.Id)) _favoriteIds.Remove(SelectedSetting.Id);
-        RebuildPreferenceLists();
+        ArgumentNullException.ThrowIfNull(row);
+        row.IsFavorite = !row.IsFavorite;
+        if (row.IsFavorite) _favoriteIds.Add(row.Entry.Id);
+        else _favoriteIds.Remove(row.Entry.Id);
+        SettingsView.Refresh();
         OnPreferencesChanged();
-        OnPropertyChanged(nameof(IsSelectedFavorite));
-        OnPropertyChanged(nameof(FavoriteButtonText));
         await SavePreferencesAsync();
     }
 
@@ -248,17 +253,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public async Task ClearFavoritePreferencesAsync()
     {
         _favoriteIds.Clear();
-        RebuildPreferenceLists();
-        OnPreferencesChanged();
-        OnPropertyChanged(nameof(IsSelectedFavorite));
-        OnPropertyChanged(nameof(FavoriteButtonText));
-        await SavePreferencesAsync();
-    }
-
-    public async Task ClearRecentSettingsAsync()
-    {
-        _preferences = _preferences with { RecentlyViewedSettingIds = [] };
-        RecentSettings.Clear();
+        foreach (var row in Settings) row.IsFavorite = false;
+        SettingsView.Refresh();
         OnPreferencesChanged();
         await SavePreferencesAsync();
     }
@@ -267,50 +263,75 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     /// Revalidates the source through a fresh read-only connection before accepting an in-memory edit.
     /// This intentionally does not create a writable database connection.
     /// </summary>
-    public Task StageSelectedChangeAsync() => RunBusyAsync(async cancellationToken =>
+    public void UndoRowChange(DatabaseSettingRow row)
     {
-        if (SelectedSetting is null || _loadedMetadata is null) return;
-
-        var currentResult = await Task.Run(
-            () => _validator.ValidateAsync(DatabasePath, cancellationToken),
-            cancellationToken);
-        var sourceState = SourceDatabaseComparer.Compare(_loadedMetadata, currentResult);
-        if (sourceState != SourceDatabaseState.Unchanged)
-        {
-            _changeStaging.ResetAll();
-            RefreshPendingChanges();
-            SourceDatabaseChanged = true;
-            EditorError = sourceState == SourceDatabaseState.Changed
-                ? "The database changed after it was loaded. Pending changes were discarded; reload it before staging again."
-                : "The database can no longer be validated. Pending changes were discarded; close the game or Steam updater and reload it.";
-            EditorWarning = string.Empty;
-            StatusTitle = "Database changed";
-            StatusDetails = EditorError;
-            return;
-        }
-
-        var outcome = _changeStaging.Stage(SelectedSetting, ProposedValue);
-        EditorError = outcome.Change?.ValidationError ?? string.Empty;
-        EditorWarning = outcome.Change?.WarningSummary ?? (outcome.WasReverted ? "Matches the original value; the pending change was removed." : string.Empty);
-        RefreshPendingChanges();
-        if (outcome.WasReverted) ProposedValue = SelectedSetting.RawValue;
-    });
-
-    public void ResetSelectedChange()
-    {
-        if (SelectedSetting is null) return;
-        _changeStaging.Reset(SelectedSetting.Id);
-        ProposedValue = SelectedSetting.RawValue;
-        EditorError = string.Empty;
-        EditorWarning = "Pending change removed.";
+        ArgumentNullException.ThrowIfNull(row);
+        _changeStaging.Reset(row.Entry.Id);
+        row.ResetEditState();
         RefreshPendingChanges();
     }
 
     public void ResetAllChanges()
     {
         _changeStaging.ResetAll();
-        LoadSelectedEditState();
+        foreach (var row in Settings) row.ResetEditState();
         RefreshPendingChanges();
+    }
+
+    private void OnRowDraftChanged(DatabaseSettingRow row) =>
+        _ = StageRowAfterDebounceAsync(row, row.DraftVersion, _settingsGeneration);
+
+    private async Task StageRowAfterDebounceAsync(DatabaseSettingRow row, long version, long generation)
+    {
+        await Task.Delay(TimeSpan.FromMilliseconds(350));
+        if (generation != _settingsGeneration || version != row.DraftVersion || IsBusy || SourceDatabaseChanged || _loadedMetadata is null) return;
+
+        row.IsValidating = true;
+        try
+        {
+            var currentResult = await Task.Run(
+                () => _validator.ValidateAsync(DatabasePath),
+                CancellationToken.None);
+            if (generation != _settingsGeneration || version != row.DraftVersion) return;
+
+            var sourceState = SourceDatabaseComparer.Compare(_loadedMetadata, currentResult);
+            if (sourceState != SourceDatabaseState.Unchanged)
+            {
+                var error = sourceState == SourceDatabaseState.Changed
+                    ? "The database changed after it was loaded. All staged changes were discarded; reload it before editing again."
+                    : "The database can no longer be validated. All staged changes were discarded; reload it before editing again.";
+                DiscardInlineEdits(error);
+                row.ValidationError = error;
+                return;
+            }
+
+            var outcome = _changeStaging.Stage(row.Entry, row.DraftValue);
+            row.ValidationError = outcome.Change?.ValidationError ?? string.Empty;
+            row.Warning = outcome.Change?.WarningSummary ??
+                (outcome.WasReverted ? "Matches the original value; the staged change was removed." : string.Empty);
+            row.IsStaged = outcome.Change?.IsValid == true;
+            if (outcome.WasReverted) row.SetDraftWithoutStaging(row.RawValue);
+            RefreshPendingChanges();
+        }
+        catch (Exception exception)
+        {
+            if (generation == _settingsGeneration && version == row.DraftVersion)
+                row.ValidationError = $"Could not validate the database before staging: {exception.Message}";
+        }
+        finally
+        {
+            if (generation == _settingsGeneration && version == row.DraftVersion) row.IsValidating = false;
+        }
+    }
+
+    private void DiscardInlineEdits(string error)
+    {
+        _changeStaging.ResetAll();
+        foreach (var row in Settings) row.ResetEditState();
+        RefreshPendingChanges();
+        SourceDatabaseChanged = true;
+        StatusTitle = "Database changed";
+        StatusDetails = error;
     }
 
     private async Task ValidateAndLoadAsync(string path, bool rememberSelection, CancellationToken cancellationToken)
@@ -333,6 +354,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             await SavePreferencesAsync(cancellationToken);
         }
 
+        await TryLearnGameInstallPathAsync(path, cancellationToken);
+
         StatusTitle = "Loading settings…";
         // Microsoft.Data.Sqlite executes SQLite work synchronously even through its async API.
         // Keep that work off WPF's dispatcher so large databases cannot freeze the window.
@@ -346,11 +369,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         var settings = await settingsTask;
         var catalogResult = _catalog.Apply(settings.Entries);
-        foreach (var entry in catalogResult.Entries) Settings.Add(entry);
+        foreach (var entry in catalogResult.Entries)
+        {
+            var row = new DatabaseSettingRow(entry, _favoriteIds.Contains(entry.Id));
+            row.DraftChanged += OnRowDraftChanged;
+            Settings.Add(row);
+        }
         foreach (var category in catalogResult.Entries.Select(item => item.Category).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value))
             Categories.Add(category);
         foreach (var table in await schemaTask) SchemaTables.Add(table);
-        RebuildPreferenceLists();
 
         SettingsSummary = $"{settings.Entries.Count:N0} settings loaded" +
             $" · {catalogResult.Entries.Count(item => item.IsDocumented):N0} catalogued · {_catalog.CatalogVersion}." +
@@ -363,6 +390,24 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         StatusDetails = "Browse, inspect, or stage changes below. All database access remains read-only; staged changes stay in memory.";
     }
 
+    private async Task TryLearnGameInstallPathAsync(string databasePath, CancellationToken cancellationToken)
+    {
+        var installRoot = GameDatabasePaths.TryGetInstallRoot(databasePath);
+        if (installRoot is null ||
+            string.Equals(_preferences.GameInstallPath, installRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _preferences = _preferences with { GameInstallPath = installRoot };
+        OnPreferencesChanged();
+        await SavePreferencesAsync(cancellationToken);
+    }
+
+    private string? GetSaveDirectory() => SavedInstallRoot is null
+        ? null
+        : GameDatabasePaths.GetSaveDataDirectory(SavedInstallRoot);
+
     private void SetMetadata(DatabaseFileMetadata metadata)
     {
         MetadataDetails = string.Join(Environment.NewLine,
@@ -373,12 +418,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     private void ClearBrowser(string path)
     {
+        _settingsGeneration++;
         DatabasePath = path;
         Settings.Clear();
         SchemaTables.Clear();
         PreviewRows.Clear();
-        FavoriteSettings.Clear();
-        RecentSettings.Clear();
         _changeStaging.ResetAll();
         PendingChanges.Clear();
         _loadedMetadata = null;
@@ -386,28 +430,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         Categories.Clear();
         Categories.Add("All categories");
         SelectedCategory = "All categories";
-        SelectedSetting = null;
         SelectedSchemaTable = null;
         SettingsSummary = "No settings loaded.";
         SchemaSummary = "No schema loaded.";
         MetadataDetails = "No validated database loaded.";
-        ProposedValue = string.Empty;
-        EditorError = string.Empty;
-        EditorWarning = string.Empty;
-        OnPropertyChanged(nameof(EditorLabel));
-        OnPropertyChanged(nameof(CanStageSelected));
         OnPropertyChanged(nameof(HasPendingChanges));
-    }
-
-    private void LoadSelectedEditState()
-    {
-        ProposedValue = SelectedSetting is null
-            ? string.Empty
-            : _changeStaging.Get(SelectedSetting.Id)?.ProposedRawValue ?? SelectedSetting.RawValue;
-        EditorError = _changeStaging.Get(SelectedSetting?.Id ?? default)?.ValidationError ?? string.Empty;
-        EditorWarning = _changeStaging.Get(SelectedSetting?.Id ?? default)?.WarningSummary ?? string.Empty;
-        OnPropertyChanged(nameof(EditorLabel));
-        OnPropertyChanged(nameof(CanStageSelected));
     }
 
     private void RefreshPendingChanges()
@@ -415,18 +442,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         PendingChanges.Clear();
         foreach (var change in _changeStaging.PendingChanges) PendingChanges.Add(change);
         OnPropertyChanged(nameof(HasPendingChanges));
-        OnPropertyChanged(nameof(CanStageSelected));
     }
 
     private bool FilterSetting(object item)
     {
-        if (item is not SettingEntry setting) return false;
+        if (item is not DatabaseSettingRow setting) return false;
         if (SelectedType != "All types" && setting.TypeLabel != SelectedType) return false;
-        if (SelectedCategory != "All categories" && !setting.Category.Equals(SelectedCategory, StringComparison.OrdinalIgnoreCase)) return false;
+        if (SelectedCategory != "All categories" && !setting.Entry.Category.Equals(SelectedCategory, StringComparison.OrdinalIgnoreCase)) return false;
+        if (IsFavoritesOnly && !setting.IsFavorite) return false;
         if (string.IsNullOrWhiteSpace(SearchText)) return true;
         return setting.Key.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
                setting.Label.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-               setting.Description.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+               setting.Entry.Description.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
                setting.RawValue.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
                setting.SourceTable.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
     }
@@ -438,36 +465,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             if (SettingId.TryParse(value, out var id)) _favoriteIds.Add(id);
     }
 
-    private void RebuildPreferenceLists()
-    {
-        FavoriteSettings.Clear();
-        foreach (var setting in Settings.Where(item => _favoriteIds.Contains(item.Id)).OrderBy(item => item.Label))
-            FavoriteSettings.Add(setting);
-
-        RecentSettings.Clear();
-        var byId = Settings.ToDictionary(item => item.Id);
-        foreach (var value in _preferences.RecentlyViewedSettingIds ?? [])
-            if (SettingId.TryParse(value, out var id) && byId.TryGetValue(id, out var setting)) RecentSettings.Add(setting);
-    }
-
-    private void RecordRecentlyViewed(SettingEntry setting)
-    {
-        var id = setting.Id.ToString();
-        var recent = (_preferences.RecentlyViewedSettingIds ?? []).Where(value => !value.Equals(id, StringComparison.Ordinal)).Prepend(id).Take(10).ToArray();
-        _preferences = _preferences with { RecentlyViewedSettingIds = recent };
-        var existing = RecentSettings.FirstOrDefault(item => item.Id == setting.Id);
-        if (existing is not null) RecentSettings.Remove(existing);
-        RecentSettings.Insert(0, setting);
-        while (RecentSettings.Count > 10) RecentSettings.RemoveAt(RecentSettings.Count - 1);
-        OnPreferencesChanged();
-        _ = SavePreferencesAsync();
-    }
 
     private void OnPreferencesChanged()
     {
         OnPropertyChanged(nameof(RememberedDatabasePath));
         OnPropertyChanged(nameof(FavoriteCount));
-        OnPropertyChanged(nameof(RecentSettingsCount));
+        OnPropertyChanged(nameof(GameInstallPath));
+        OnPropertyChanged(nameof(GameInstallDetails));
     }
 
     private async Task SavePreferencesAsync(CancellationToken cancellationToken = default)
@@ -479,6 +483,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             await _preferencesStore.SaveAsync(_preferences, cancellationToken);
         }
         finally { _preferencesSaveLock.Release(); }
+    }
+
+    private void SaveFavoriteSavePointers(IReadOnlyList<string> pointers)
+    {
+        _preferences = _preferences with { FavoriteSaveValuePointers = pointers };
+        _ = SavePreferencesAsync();
     }
 
     private async Task RunBusyAsync(Func<CancellationToken, Task> action)

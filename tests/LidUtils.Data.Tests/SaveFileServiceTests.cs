@@ -28,6 +28,41 @@ public sealed class SaveFileServiceTests
     }
 
     [Fact]
+    public async Task ExportJson_WritesDecodedJsonWithoutModifyingTheSave()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var savePath = Path.Combine(temporaryDirectory.Path, "user.sav");
+        var exportPath = Path.Combine(temporaryDirectory.Path, "user.json");
+        const string json = "{\"coins\":10,\"name\":\"Ferdinand\"}";
+        var originalContainer = CreateContainer(json);
+        await File.WriteAllBytesAsync(savePath, originalContainer);
+        var service = new SaveFileService(temporaryDirectory.Path, Path.Combine(temporaryDirectory.Path, "backups"), () => false);
+        var snapshot = await service.LoadAsync(savePath);
+
+        await service.ExportJsonAsync(snapshot, exportPath);
+
+        Assert.Equal(json, await File.ReadAllTextAsync(exportPath));
+        Assert.Equal(originalContainer, await File.ReadAllBytesAsync(savePath));
+    }
+
+    [Fact]
+    public async Task ExportJson_RejectsAChangedSource()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var savePath = Path.Combine(temporaryDirectory.Path, "user.sav");
+        var exportPath = Path.Combine(temporaryDirectory.Path, "user.json");
+        await File.WriteAllBytesAsync(savePath, CreateContainer("{\"coins\":10}"));
+        var service = new SaveFileService(temporaryDirectory.Path, Path.Combine(temporaryDirectory.Path, "backups"), () => false);
+        var snapshot = await service.LoadAsync(savePath);
+        await File.WriteAllBytesAsync(savePath, CreateContainer("{\"coins\":11}"));
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.ExportJsonAsync(snapshot, exportPath));
+
+        Assert.Contains("changed after it was loaded", exception.Message);
+        Assert.False(File.Exists(exportPath));
+    }
+
+    [Fact]
     public async Task Apply_CreatesVerifiedBackupAndPreservesUneditedJsonBytes()
     {
         using var temporaryDirectory = new TemporaryDirectory();

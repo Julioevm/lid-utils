@@ -37,12 +37,15 @@ public sealed class SaveFileService : ISaveFileService
         _isGameRunning = isGameRunning ?? IsLetItDieRunning;
     }
 
-    public Task<IReadOnlyList<string>> DiscoverAsync(CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<string>> DiscoverAsync(
+        string? directory = null,
+        CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        IReadOnlyList<string> paths = !Directory.Exists(_saveDirectory)
+        var saveDirectory = directory ?? _saveDirectory;
+        IReadOnlyList<string> paths = !Directory.Exists(saveDirectory)
             ? []
-            : Directory.EnumerateFiles(_saveDirectory, "*.sav", SearchOption.TopDirectoryOnly)
+            : Directory.EnumerateFiles(saveDirectory, "*.sav", SearchOption.TopDirectoryOnly)
                 .OrderByDescending(File.GetLastWriteTimeUtc)
                 .ToArray();
         return Task.FromResult(paths);
@@ -54,6 +57,20 @@ public sealed class SaveFileService : ISaveFileService
     {
         var source = await ReadAllBytesSharedAsync(path, cancellationToken);
         return await Task.Run(() => CreateSnapshot(path, source), cancellationToken);
+    }
+
+    public async Task ExportJsonAsync(
+        SaveFileSnapshot snapshot,
+        string destinationPath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+
+        var source = await ReadAllBytesSharedAsync(snapshot.Path, cancellationToken);
+        EnsureFingerprint(snapshot, source);
+        var container = SaveFileCodec.Decode(source);
+        await File.WriteAllBytesAsync(destinationPath, container.JsonUtf8, cancellationToken);
     }
 
     public async Task<SaveApplyResult> ApplyAsync(

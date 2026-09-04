@@ -15,14 +15,14 @@ The settings browser through Milestone 4 is implemented. The application can:
 - Display validation results in a Windows interface.
 - Load integer, floating-point, and string constants asynchronously.
 - Search by key, value, or source table, sort columns, and filter by value type or key-prefix category.
-- Display raw values and read-only details for each setting.
+- Edit database setting drafts directly in the table, with inline validation, undo, and persisted row-based favorites.
 - Show the database path, validation status, modified time, and fingerprints.
 - Inspect every table/view, its columns, row count, and a read-only preview capped at 100 rows.
 - Load a versioned, strictly validated curated settings catalog.
 - Show curated labels, descriptions, categories, units, ranges, display formats, conversions, and risk levels.
-- Keep exact raw database text visible beside any converted display value.
+- Keep exact raw database text visible beside each editable draft.
 - Clearly mark constants missing from the catalog as undocumented and experimental.
-- Save favorites and the ten most recently viewed settings in local application preferences.
+- Save favorite settings in local application preferences.
 - Stage integer, floating-point, and string constant changes entirely in memory.
 - Validate staged numeric values against catalog ranges and increments.
 - Review exact original/proposed raw-value diffs, reset one setting, or reset all pending changes.

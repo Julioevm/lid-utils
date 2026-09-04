@@ -68,7 +68,8 @@ public sealed class SaveChangeStagingService
         var validation = Normalize(entry.Type, proposedValue);
         if (validation.Error is not null)
         {
-            return new SaveStageOutcome(null, validation.Error);
+            var removed = _changes.Remove(entry.Pointer);
+            return new SaveStageOutcome(null, validation.Error, removed);
         }
 
         if (string.Equals(entry.Value, validation.Value, StringComparison.Ordinal))

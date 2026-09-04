@@ -20,6 +20,7 @@ public sealed class DatabaseDiscoveryService : IDatabaseDiscoveryService
 
     public Task<IReadOnlyList<DatabaseCandidate>> GetCandidatesAsync(
         string? rememberedPath,
+        string? gameInstallPath = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -29,6 +30,14 @@ public sealed class DatabaseDiscoveryService : IDatabaseDiscoveryService
 
         AddCandidate(_requestedDefaultPath, DatabaseCandidateSource.DefaultPath, candidates, seen);
         AddCandidate(rememberedPath, DatabaseCandidateSource.RememberedSelection, candidates, seen);
+        if (!string.IsNullOrWhiteSpace(gameInstallPath))
+        {
+            AddCandidate(
+                GameDatabasePaths.GetDatabasePath(gameInstallPath),
+                DatabaseCandidateSource.GameInstallPath,
+                candidates,
+                seen);
+        }
 
         var steamRoots = _steamRootsOverride ?? _steamLocator.GetSteamRoots();
         foreach (var steamRoot in steamRoots)
@@ -56,9 +65,10 @@ public sealed class DatabaseDiscoveryService : IDatabaseDiscoveryService
 
     public async Task<DatabaseCandidate?> FindFirstExistingAsync(
         string? rememberedPath,
+        string? gameInstallPath = null,
         CancellationToken cancellationToken = default)
     {
-        var candidates = await GetCandidatesAsync(rememberedPath, cancellationToken);
+        var candidates = await GetCandidatesAsync(rememberedPath, gameInstallPath, cancellationToken);
         return candidates.FirstOrDefault(candidate =>
                 candidate.Exists && candidate.Source == DatabaseCandidateSource.RememberedSelection)
             ?? candidates.FirstOrDefault(candidate => candidate.Exists);

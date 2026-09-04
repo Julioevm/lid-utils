@@ -33,4 +33,18 @@ public sealed class SaveChangeStagingServiceTests
         Assert.True(outcome.WasReverted);
         Assert.False(staging.HasPendingChanges);
     }
+
+    [Fact]
+    public void Stage_InvalidReplacementRemovesExistingPendingChange()
+    {
+        var staging = new SaveChangeStagingService();
+        var entry = new SaveValueEntry("/soul/free_money", "/soul/free_money", SaveValueType.Number, "10");
+
+        staging.Stage(entry, "20");
+        var outcome = staging.Stage(entry, "not a number");
+
+        Assert.NotNull(outcome.Error);
+        Assert.True(outcome.WasReverted);
+        Assert.False(staging.HasPendingChanges);
+    }
 }

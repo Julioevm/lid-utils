@@ -4,6 +4,7 @@ public enum DatabaseCandidateSource
 {
     DefaultPath,
     RememberedSelection,
+    GameInstallPath,
     SteamLibrary,
     StandardSteamInstall,
     ManualSelection

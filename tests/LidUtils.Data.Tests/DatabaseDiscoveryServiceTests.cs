@@ -64,4 +64,24 @@ public sealed class DatabaseDiscoveryServiceTests
         Assert.Equal(rememberedPath, candidate.Path, ignoreCase: true);
         Assert.Equal(DatabaseCandidateSource.RememberedSelection, candidate.Source);
     }
+
+    [Fact]
+    public async Task FindFirstExisting_UsesDatabaseDerivedFromGameInstallPath()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var installRoot = System.IO.Path.Combine(temporaryDirectory.Path, "LET IT DIE");
+        var databasePath = GameDatabasePaths.GetDatabasePath(installRoot);
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(databasePath)!);
+        await File.WriteAllBytesAsync(databasePath, [1]);
+
+        var service = new DatabaseDiscoveryService(
+            steamRootsOverride: [],
+            requestedDefaultPathOverride: System.IO.Path.Combine(temporaryDirectory.Path, "missing", "masters.db"));
+
+        var candidate = await service.FindFirstExistingAsync(null, installRoot);
+
+        Assert.NotNull(candidate);
+        Assert.Equal(databasePath, candidate.Path, ignoreCase: true);
+        Assert.Equal(DatabaseCandidateSource.GameInstallPath, candidate.Source);
+    }
 }

@@ -4,10 +4,12 @@ public interface IDatabaseDiscoveryService
 {
     Task<IReadOnlyList<DatabaseCandidate>> GetCandidatesAsync(
         string? rememberedPath,
+        string? gameInstallPath = null,
         CancellationToken cancellationToken = default);
 
     Task<DatabaseCandidate?> FindFirstExistingAsync(
         string? rememberedPath,
+        string? gameInstallPath = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -38,7 +40,9 @@ public interface IReadOnlyDatabaseBrowser
 public sealed record AppPreferences(
     string? LastDatabasePath = null,
     IReadOnlyList<string>? FavoriteSettingIds = null,
-    IReadOnlyList<string>? RecentlyViewedSettingIds = null);
+    IReadOnlyList<string>? RecentlyViewedSettingIds = null,
+    string? GameInstallPath = null,
+    IReadOnlyList<string>? FavoriteSaveValuePointers = null);
 
 public interface IPreferencesStore
 {
@@ -49,10 +53,17 @@ public interface IPreferencesStore
 
 public interface ISaveFileService
 {
-    Task<IReadOnlyList<string>> DiscoverAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<string>> DiscoverAsync(
+        string? directory = null,
+        CancellationToken cancellationToken = default);
 
     Task<SaveFileSnapshot> LoadAsync(
         string path,
+        CancellationToken cancellationToken = default);
+
+    Task ExportJsonAsync(
+        SaveFileSnapshot snapshot,
+        string destinationPath,
         CancellationToken cancellationToken = default);
 
     Task<SaveApplyResult> ApplyAsync(
