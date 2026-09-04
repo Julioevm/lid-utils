@@ -16,6 +16,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly IDatabaseValidator _validator;
     private readonly IPreferencesStore _preferencesStore;
     private readonly IReadOnlyDatabaseBrowser _browser;
+    private readonly IDatabaseMaintenanceService _databaseMaintenance;
     private readonly SettingsCatalog _catalog;
     private readonly ChangeStagingService _changeStaging = new();
     private readonly SemaphoreSlim _preferencesSaveLock = new(1, 1);
@@ -37,12 +38,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private bool _isFavoritesOnly;
     private long _settingsGeneration;
     private CancellationTokenSource? _operationCancellation;
+    private DatabaseBackupRow? _selectedDatabaseBackup;
+    private bool _isDatabaseMaintenanceActive;
 
     public MainWindowViewModel(
         IDatabaseDiscoveryService discoveryService,
         IDatabaseValidator validator,
         IPreferencesStore preferencesStore,
         IReadOnlyDatabaseBrowser browser,
+        IDatabaseMaintenanceService databaseMaintenance,
         SettingsCatalog catalog,
         SaveEditorViewModel saveEditor)
     {
@@ -50,6 +54,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _validator = validator;
         _preferencesStore = preferencesStore;
         _browser = browser;
+        _databaseMaintenance = databaseMaintenance;
         _catalog = catalog;
         SaveEditor = saveEditor;
         SaveEditor.FavoritePointersChanged += SaveFavoriteSavePointers;
@@ -67,6 +72,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ObservableCollection<SchemaTable> SchemaTables { get; } = [];
     public ObservableCollection<TablePreviewRow> PreviewRows { get; } = [];
     public ObservableCollection<StagedSettingChange> PendingChanges { get; } = [];
+    public ObservableCollection<DatabaseBackupRow> DatabaseBackups { get; } = [];
 
     public string DatabasePath
     {
@@ -128,10 +134,39 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         get => _sourceDatabaseChanged;
         private set
         {
-            SetField(ref _sourceDatabaseChanged, value);
+            if (!SetField(ref _sourceDatabaseChanged, value)) return;
+            OnPropertyChanged(nameof(CanApplyDatabaseChanges));
         }
     }
     public bool HasPendingChanges => _changeStaging.HasPendingChanges;
+    public bool CanApplyDatabaseChanges =>
+        HasPendingChanges &&
+        !_changeStaging.HasInvalidDrafts &&
+        !HasUnsettledDatabaseDrafts &&
+        _loadedMetadata is not null &&
+        !SourceDatabaseChanged &&
+        !IsBusy;
+    public int DatabaseBackupRetentionCount => NormalizeRetention(_preferences.DatabaseBackupRetentionCount);
+    public DatabaseBackupRow? SelectedDatabaseBackup
+    {
+        get => _selectedDatabaseBackup;
+        set
+        {
+            if (!SetField(ref _selectedDatabaseBackup, value)) return;
+            OnPropertyChanged(nameof(CanRestoreDatabaseBackup));
+        }
+    }
+    public bool CanRestoreDatabaseBackup => SelectedDatabaseBackup?.IsEligible == true && !IsBusy;
+    public bool IsDatabaseMaintenanceActive
+    {
+        get => _isDatabaseMaintenanceActive;
+        private set
+        {
+            if (!SetField(ref _isDatabaseMaintenanceActive, value)) return;
+            OnPropertyChanged(nameof(CanApplyDatabaseChanges));
+            OnPropertyChanged(nameof(CanRestoreDatabaseBackup));
+        }
+    }
     public SchemaTable? SelectedSchemaTable { get => _selectedSchemaTable; set => SetField(ref _selectedSchemaTable, value); }
 
     public bool IsBusy
@@ -143,6 +178,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(CanInteract));
             OnPropertyChanged(nameof(HasDatabasePath));
             OnPropertyChanged(nameof(BusyVisibility));
+            OnPropertyChanged(nameof(CanApplyDatabaseChanges));
+            OnPropertyChanged(nameof(CanRestoreDatabaseBackup));
         }
     }
 
@@ -157,6 +194,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             StatusTitle = "Searching…";
             StatusDetails = "Checking the saved game folder, the requested default path, and configured Steam libraries.";
             _preferences = await _preferencesStore.LoadAsync(cancellationToken);
+            if (_preferences.DatabaseBackupRetentionCount is < 1 or > DatabaseMaintenanceService.MaximumBackupRetentionCount)
+                _preferences = _preferences with { DatabaseBackupRetentionCount = DatabaseMaintenanceService.DefaultBackupRetentionCount };
             LoadPreferenceIds();
             SaveEditor.LoadFavoritePointers(_preferences.FavoriteSaveValuePointers ?? []);
             OnPreferencesChanged();
@@ -232,6 +271,82 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public void CancelPendingOperations() => _operationCancellation?.Cancel();
 
+    public async Task<bool> SetDatabaseBackupRetentionAsync(int count)
+    {
+        if (count is < 1 or > DatabaseMaintenanceService.MaximumBackupRetentionCount)
+        {
+            StatusTitle = "Invalid backup limit";
+            StatusDetails = $"Enter a number from 1 to {DatabaseMaintenanceService.MaximumBackupRetentionCount}. Existing backups were not changed.";
+            return false;
+        }
+
+        _preferences = _preferences with { DatabaseBackupRetentionCount = count };
+        OnPropertyChanged(nameof(DatabaseBackupRetentionCount));
+        await SavePreferencesAsync();
+        StatusTitle = "Backup limit saved";
+        StatusDetails = $"The newest {count:N0} database backup(s) will be kept globally after the next successful apply or restore.";
+        return true;
+    }
+
+    public Task ApplyDatabaseChangesAsync() => RunBusyAsync(async cancellationToken =>
+    {
+        if (_loadedMetadata is null ||
+            !_changeStaging.HasPendingChanges ||
+            _changeStaging.HasInvalidDrafts ||
+            HasUnsettledDatabaseDrafts ||
+            SourceDatabaseChanged) return;
+        var changes = _changeStaging.PendingChanges.ToArray();
+        IsDatabaseMaintenanceActive = true;
+        try
+        {
+            StatusTitle = "Backing up and applying…";
+            StatusDetails = "Creating and verifying a database backup, then applying the complete change set in one transaction.";
+            var result = await Task.Run(
+                () => _databaseMaintenance.ApplyAsync(
+                    _loadedMetadata,
+                    changes,
+                    DatabaseBackupRetentionCount,
+                    cancellationToken),
+                cancellationToken);
+            _changeStaging.ResetAll();
+            await ValidateAndLoadAsync(result.UpdatedMetadata.Path, false, cancellationToken);
+            StatusTitle = "Database updated safely";
+            StatusDetails = $"Applied {changes.Length:N0} change(s). Verified backup: {result.Backup.BackupPath}" +
+                FormatWarnings(result.Warnings);
+        }
+        finally
+        {
+            IsDatabaseMaintenanceActive = false;
+        }
+    });
+
+    public Task RestoreSelectedDatabaseBackupAsync() => RunBusyAsync(async cancellationToken =>
+    {
+        if (SelectedDatabaseBackup is not { IsEligible: true } selected || _loadedMetadata is null) return;
+        IsDatabaseMaintenanceActive = true;
+        try
+        {
+            StatusTitle = "Backing up and restoring…";
+            StatusDetails = "Creating a safety backup of the current database before restoring the selected snapshot.";
+            var result = await Task.Run(
+                () => _databaseMaintenance.RestoreAsync(
+                    _loadedMetadata.Path,
+                    selected.Id,
+                    DatabaseBackupRetentionCount,
+                    cancellationToken),
+                cancellationToken);
+            _changeStaging.ResetAll();
+            await ValidateAndLoadAsync(result.RestoredMetadata.Path, false, cancellationToken);
+            StatusTitle = "Database restored safely";
+            StatusDetails = $"The selected backup was restored. Pre-restore safety backup: {result.SafetyBackup.BackupPath}" +
+                FormatWarnings(result.Warnings);
+        }
+        finally
+        {
+            IsDatabaseMaintenanceActive = false;
+        }
+    });
+
     public async Task ToggleFavoriteAsync(DatabaseSettingRow row)
     {
         ArgumentNullException.ThrowIfNull(row);
@@ -278,8 +393,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         RefreshPendingChanges();
     }
 
-    private void OnRowDraftChanged(DatabaseSettingRow row) =>
+    private void OnRowDraftChanged(DatabaseSettingRow row)
+    {
+        OnPropertyChanged(nameof(CanApplyDatabaseChanges));
         _ = StageRowAfterDebounceAsync(row, row.DraftVersion, _settingsGeneration);
+    }
 
     private async Task StageRowAfterDebounceAsync(DatabaseSettingRow row, long version, long generation)
     {
@@ -387,7 +505,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _loadedMetadata = result.Metadata;
         SourceDatabaseChanged = false;
         StatusTitle = "Database ready";
-        StatusDetails = "Browse, inspect, or stage changes below. All database access remains read-only; staged changes stay in memory.";
+        StatusDetails = "Browse settings or stage changes. Nothing is written until Apply is confirmed and a verified backup is ready.";
+        await RefreshDatabaseBackupsAsync(path, result.Metadata.SchemaSha256, cancellationToken);
     }
 
     private async Task TryLearnGameInstallPathAsync(string databasePath, CancellationToken cancellationToken)
@@ -423,6 +542,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         Settings.Clear();
         SchemaTables.Clear();
         PreviewRows.Clear();
+        DatabaseBackups.Clear();
         _changeStaging.ResetAll();
         PendingChanges.Clear();
         _loadedMetadata = null;
@@ -431,10 +551,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         Categories.Add("All categories");
         SelectedCategory = "All categories";
         SelectedSchemaTable = null;
+        SelectedDatabaseBackup = null;
         SettingsSummary = "No settings loaded.";
         SchemaSummary = "No schema loaded.";
         MetadataDetails = "No validated database loaded.";
         OnPropertyChanged(nameof(HasPendingChanges));
+        OnPropertyChanged(nameof(CanApplyDatabaseChanges));
+        OnPropertyChanged(nameof(CanRestoreDatabaseBackup));
     }
 
     private void RefreshPendingChanges()
@@ -442,6 +565,27 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         PendingChanges.Clear();
         foreach (var change in _changeStaging.PendingChanges) PendingChanges.Add(change);
         OnPropertyChanged(nameof(HasPendingChanges));
+        OnPropertyChanged(nameof(CanApplyDatabaseChanges));
+    }
+
+    private bool HasUnsettledDatabaseDrafts => Settings.Any(row =>
+    {
+        if (string.Equals(row.DraftValue, row.RawValue, StringComparison.Ordinal)) return false;
+        var staged = _changeStaging.Get(row.Entry.Id);
+        return staged is null || !string.Equals(staged.ProposedRawValue, row.DraftValue, StringComparison.Ordinal);
+    });
+
+    private async Task RefreshDatabaseBackupsAsync(
+        string sourcePath,
+        string schemaSha256,
+        CancellationToken cancellationToken)
+    {
+        DatabaseBackups.Clear();
+        SelectedDatabaseBackup = null;
+        var backups = await Task.Run(
+            () => _databaseMaintenance.ListBackupsAsync(sourcePath, cancellationToken),
+            cancellationToken);
+        foreach (var backup in backups) DatabaseBackups.Add(new DatabaseBackupRow(backup, schemaSha256));
     }
 
     private bool FilterSetting(object item)
@@ -472,6 +616,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(FavoriteCount));
         OnPropertyChanged(nameof(GameInstallPath));
         OnPropertyChanged(nameof(GameInstallDetails));
+        OnPropertyChanged(nameof(DatabaseBackupRetentionCount));
     }
 
     private async Task SavePreferencesAsync(CancellationToken cancellationToken = default)
@@ -501,18 +646,28 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         catch (OperationCanceledException)
         {
             StatusTitle = "Operation cancelled";
-            StatusDetails = "The read-only database operation was cancelled.";
+            StatusDetails = "The operation was cancelled without leaving a partial database change.";
         }
         catch (Exception exception)
         {
             StatusTitle = "Operation failed";
             StatusDetails = exception.Message;
+            if (exception is DatabaseOperationException { Error: DatabaseOperationError.SourceChanged })
+                DiscardInlineEdits(exception.Message);
         }
         finally { IsBusy = false; }
     }
 
     private static string FormatBytes(long bytes) =>
         (bytes / (1024d * 1024d)).ToString("N1", CultureInfo.CurrentCulture) + " MB";
+
+    private static int NormalizeRetention(int count) =>
+        count is >= 1 and <= DatabaseMaintenanceService.MaximumBackupRetentionCount
+            ? count
+            : DatabaseMaintenanceService.DefaultBackupRetentionCount;
+
+    private static string FormatWarnings(IReadOnlyList<string> warnings) =>
+        warnings.Count == 0 ? string.Empty : $" {string.Join(" ", warnings)}";
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {

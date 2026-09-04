@@ -61,7 +61,7 @@ public sealed class ChangeStagingServiceTests
         var change = service.Stage(entry, "500").Change!;
 
         Assert.True(change.IsValid);
-        Assert.Contains(change.Warnings, warning => warning.Contains("Experimental"));
+        Assert.Contains(change.Warnings, warning => warning.Contains("Catalog note"));
         Assert.Contains(change.Warnings, warning => warning.Contains("Unusually large"));
     }
 
@@ -75,7 +75,7 @@ public sealed class ChangeStagingServiceTests
 
         Assert.True(change.IsValid);
         Assert.Equal("new text", change.ProposedRawValue);
-        Assert.Contains(change.Warnings, warning => warning.Contains("Undocumented"));
+        Assert.Contains(change.Warnings, warning => warning.Contains("not yet described"));
     }
 
     [Fact]

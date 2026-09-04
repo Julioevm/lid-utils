@@ -56,6 +56,8 @@ lid-utils/
 
 ## Milestone 0 — Project foundation
 
+**Status: Complete.**
+
 ### Objective
 
 Create a maintainable application skeleton and establish the safety rules that all later database work must follow.
@@ -134,7 +136,7 @@ Make the database useful to explore before enabling any write capability.
 
 ## Milestone 3 — Curated settings catalog
 
-**Status: Complete. The versioned catalog is validated before use, curated and raw values are visibly separated, local favorites/history are persisted, and undocumented constants remain available in read-only mode.**
+**Status: Complete. The versioned catalog is validated before use, curated and raw values are visibly separated, local favorites/history are persisted, and undocumented constants remain available with clear catalog status.**
 
 ### Objective
 
@@ -155,7 +157,7 @@ Turn raw database identifiers into understandable, validated controls.
 - Catalog entries map unambiguously to a table and primary key.
 - Invalid ranges, duplicate mappings, and incompatible types are rejected by tests.
 - The interface always distinguishes displayed units from raw values.
-- An undocumented constant remains accessible in advanced read-only mode.
+- An undocumented constant remains accessible with an explicit catalog-status note.
 
 ## Milestone 4 — Change staging and comparison
 
@@ -185,6 +187,8 @@ Let users prepare changes and understand their impact before any data is written
 
 ## Milestone 5 — Backup, transactional writes, and restore
 
+**Status: Complete. Valid staged constants can be applied atomically after a verified backup, restored through the in-app backup browser, and traced through local audit records. Automated fixture tests cover success, rollback, recovery, compatibility, and retention.**
+
 ### Objective
 
 Apply changes safely and provide a dependable recovery path.
@@ -202,6 +206,7 @@ Apply changes safely and provide a dependable recovery path.
 - Roll back the full transaction on any failed update or validation.
 - Add a backup browser and explicit restore workflow.
 - Maintain a local audit log of table, key, old value, and new value.
+- Keep a configurable global number of verified database backups, defaulting to five.
 
 ### Completion criteria
 
@@ -212,30 +217,11 @@ Apply changes safely and provide a dependable recovery path.
 - Locked files, permission failures, schema changes, and insufficient disk space result in safe failures.
 - The application never partially applies a pending change set.
 
-## Milestone 6 — Profiles and repeatable modifications
-
-### Objective
-
-Allow users to save, share, inspect, and reapply sets of changes without distributing game data.
-
-### Deliverables
-
-- Define a versioned profile format containing setting identifiers and proposed values only.
-- Export pending or applied changes as a profile.
-- Import profiles into the staging area rather than applying them automatically.
-- Preview conflicts, missing keys, range violations, and schema incompatibilities.
-- Add profile name, description, author, and optional notes.
-- Allow profile values to be selectively enabled or disabled.
-- Add a clean-database comparison that produces a profile-sized diff.
-
-### Completion criteria
-
-- Profiles never contain a copy of the game database.
-- Importing a profile cannot bypass catalog validation or the normal backup workflow.
-- Unknown or incompatible settings are reported without blocking compatible entries.
-- Export/import round trips preserve supported values exactly.
+The shipped database contains an unrelated pre-existing foreign-key schema mismatch, so full-database `foreign_key_check` cannot complete. Milestone 5 runs global `integrity_check` plus `foreign_key_check` for every table touched by the transaction; the three supported constant tables have no foreign keys.
 
 ## Milestone 7 — Specialized editors
+
+**Status: Deferred. Keep this as a future expansion after the core database write path is proven.**
 
 ### Objective
 
@@ -266,12 +252,15 @@ Add safer domain-specific tools for data that is more complex than single consta
 
 ## Milestone 8 — Packaging and first stable release
 
+**Status: In progress. Continuous-integration setup is the current focus; the remaining release work is still planned.**
+
 ### Objective
 
 Produce a dependable application that can be used without a development environment.
 
 ### Deliverables
 
+- Establish continuous integration that builds and runs the automated test suite.
 - Publish a Windows x64 self-contained build.
 - Add application icon, version information, and About screen.
 - Add first-run safety guidance.
@@ -296,7 +285,6 @@ Produce a dependable application that can be used without a development environm
 - Raw/display value conversion
 - Range and type validation
 - Change tracking and diff generation
-- Profile import/export
 - Path candidate ordering
 
 ### Integration tests
@@ -328,7 +316,6 @@ The first stable release will not include:
 - Arbitrary SQL execution
 - Unrestricted editing of all 222 tables
 - Editing while the game is running
-- Automatic profile application on startup
 - Cloud synchronization
 - Multiplayer, online-service, purchase, DLC, or entitlement modifications
 - Redistribution of the original database or other game assets
@@ -340,7 +327,7 @@ The first stable release will not include:
 3. Build the catalog and staging system in Milestones 3 and 4.
 4. Review the full write and recovery design before beginning Milestone 5.
 5. Treat Milestone 5 as the minimum safety gate for any public build with editing enabled.
-6. Add profiles and specialized editors only after the core write path has comprehensive tests.
+6. Consider Milestone 7 only after the core write path has comprehensive tests.
 
 ## Definition of a successful MVP
 

@@ -17,7 +17,8 @@ public sealed class JsonPreferencesStoreTests
             ["master_const_int:PLAYER_HEALTH"],
             ["master_const_float:WORLD_SPEED", "master_const_int:PLAYER_HEALTH"],
             @"D:\SteamLibrary\steamapps\common\LET IT DIE",
-            ["/soul/free_money"]));
+            ["/soul/free_money"],
+            12));
         var loaded = await store.LoadAsync();
 
         Assert.Equal(@"D:\Games\masters.db", loaded.LastDatabasePath);
@@ -25,6 +26,7 @@ public sealed class JsonPreferencesStoreTests
         Assert.Equal(["master_const_float:WORLD_SPEED", "master_const_int:PLAYER_HEALTH"], loaded.RecentlyViewedSettingIds);
         Assert.Equal(@"D:\SteamLibrary\steamapps\common\LET IT DIE", loaded.GameInstallPath);
         Assert.Equal(["/soul/free_money"], loaded.FavoriteSaveValuePointers);
+        Assert.Equal(12, loaded.DatabaseBackupRetentionCount);
     }
 
     [Fact]
@@ -38,5 +40,18 @@ public sealed class JsonPreferencesStoreTests
         var loaded = await store.LoadAsync();
 
         Assert.Null(loaded.LastDatabasePath);
+        Assert.Equal(5, loaded.DatabaseBackupRetentionCount);
+    }
+
+    [Fact]
+    public async Task Load_OlderPreferences_DefaultDatabaseBackupRetentionToFive()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var settingsPath = System.IO.Path.Combine(temporaryDirectory.Path, "settings.json");
+        await File.WriteAllTextAsync(settingsPath, "{\"LastDatabasePath\":\"C:\\\\masters.db\"}");
+
+        var loaded = await new JsonPreferencesStore(settingsPath).LoadAsync();
+
+        Assert.Equal(5, loaded.DatabaseBackupRetentionCount);
     }
 }

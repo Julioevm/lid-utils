@@ -67,13 +67,65 @@ public sealed class MainWindowViewModelTests
         });
     }
 
+    [Fact]
+    public void ApplyDatabaseChanges_UsesMaintenanceServiceAndReloadsCleanState()
+    {
+        RunOnSta(async () =>
+        {
+            var maintenance = new TestDatabaseMaintenanceService();
+            var viewModel = await LoadAsync(new TestValidator(), maintenance, Entry("COUNT", "10"));
+            viewModel.Settings.Single().DraftValue = "11";
+            await Task.Delay(500);
+
+            Assert.True(viewModel.CanApplyDatabaseChanges);
+            await viewModel.ApplyDatabaseChangesAsync();
+
+            Assert.Equal(1, maintenance.ApplyCallCount);
+            Assert.Empty(viewModel.PendingChanges);
+            Assert.Equal("Database updated safely", viewModel.StatusTitle);
+            Assert.False(viewModel.IsDatabaseMaintenanceActive);
+        });
+    }
+
+    [Fact]
+    public void BackupSelection_OnlyEnablesCompatibleRestore()
+    {
+        RunOnSta(async () =>
+        {
+            var maintenance = new TestDatabaseMaintenanceService
+            {
+                Backups =
+                [
+                    Backup(Guid.NewGuid(), "schema"),
+                    Backup(Guid.NewGuid(), "older-schema")
+                ]
+            };
+            var viewModel = await LoadAsync(new TestValidator(), maintenance, Entry("COUNT", "10"));
+
+            Assert.Equal(2, viewModel.DatabaseBackups.Count);
+            viewModel.SelectedDatabaseBackup = viewModel.DatabaseBackups.Single(row => row.IsEligible);
+            Assert.True(viewModel.CanRestoreDatabaseBackup);
+            await viewModel.RestoreSelectedDatabaseBackupAsync();
+
+            Assert.Equal(1, maintenance.RestoreCallCount);
+            Assert.Equal("Database restored safely", viewModel.StatusTitle);
+        });
+    }
+
     private static async Task<MainWindowViewModel> LoadAsync(TestValidator validator, params SettingEntry[] entries)
+        => await LoadAsync(validator, new TestDatabaseMaintenanceService(), entries);
+
+    private static async Task<MainWindowViewModel> LoadAsync(
+        TestValidator validator,
+        TestDatabaseMaintenanceService maintenance,
+        params SettingEntry[] entries)
     {
         var viewModel = new MainWindowViewModel(
             new TestDiscovery(),
             validator,
             new TestPreferencesStore(),
             new TestBrowser(entries),
+            maintenance,
             SettingsCatalog.Empty,
             new SaveEditorViewModel(new TestSaveFileService()));
         await viewModel.SelectManualPathAsync("C:\\masters.db");
@@ -82,6 +134,10 @@ public sealed class MainWindowViewModelTests
 
     private static SettingEntry Entry(string key, string value) =>
         new(key, value, SettingValueType.Integer, "master_const_int", false);
+
+    private static DatabaseBackupInfo Backup(Guid id, string schema) =>
+        new(id, $"C:\\backups\\{id:N}.db.bak", "C:\\masters.db", DateTime.UtcNow,
+            DatabaseBackupPurpose.Apply, 1, "source", schema, 1, "backup");
 
     private static void RunOnSta(Func<Task> action)
     {
@@ -166,5 +222,30 @@ public sealed class MainWindowViewModelTests
 
         public Task<SaveApplyResult> ApplyAsync(SaveFileSnapshot snapshot, IReadOnlyCollection<StagedSaveChange> changes, CancellationToken cancellationToken = default) =>
             Task.FromException<SaveApplyResult>(new NotSupportedException());
+    }
+
+    private sealed class TestDatabaseMaintenanceService : IDatabaseMaintenanceService
+    {
+        public IReadOnlyList<DatabaseBackupInfo> Backups { get; set; } = [];
+        public int ApplyCallCount { get; private set; }
+        public int RestoreCallCount { get; private set; }
+
+        public Task<DatabaseApplyResult> ApplyAsync(DatabaseFileMetadata loadedSource, IReadOnlyCollection<StagedSettingChange> changes, int backupRetentionCount, CancellationToken cancellationToken = default)
+        {
+            ApplyCallCount++;
+            var backup = Backup(Guid.NewGuid(), loadedSource.SchemaSha256);
+            return Task.FromResult(new DatabaseApplyResult(backup, loadedSource with { DatabaseSha256 = "updated" }, []));
+        }
+
+        public Task<IReadOnlyList<DatabaseBackupInfo>> ListBackupsAsync(string sourcePath, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Backups);
+
+        public Task<DatabaseRestoreResult> RestoreAsync(string sourcePath, Guid backupId, int backupRetentionCount, CancellationToken cancellationToken = default)
+        {
+            RestoreCallCount++;
+            var backup = Backup(Guid.NewGuid(), "schema");
+            var metadata = new DatabaseFileMetadata(sourcePath, 1, DateTime.UnixEpoch, "restored", "schema", 3, 0, 0);
+            return Task.FromResult(new DatabaseRestoreResult(backup, metadata, []));
+        }
     }
 }

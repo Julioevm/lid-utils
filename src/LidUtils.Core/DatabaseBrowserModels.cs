@@ -26,7 +26,7 @@ public sealed record SettingEntry(
     public bool IsDocumented => Definition is not null;
     public string Label => Definition?.Label ?? Key;
     public string Category => Definition?.Category ?? "Undocumented";
-    public string Description => Definition?.Description ?? "No curated description is available. This setting remains accessible for read-only research.";
+    public string Description => Definition?.Description ?? "No curated description is available for this setting yet.";
     public string Units => Definition?.DisplayUnits ?? Definition?.RawUnits ?? "raw game value";
     public string RawUnits => Definition?.RawUnits ?? "raw game value";
     public string RiskLevel => Definition?.Risk.ToString() ?? "Undocumented · experimental";

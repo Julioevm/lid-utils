@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Diagnostics;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
@@ -11,13 +10,6 @@ namespace LidUtils.Data;
 public sealed class SaveFileService : ISaveFileService
 {
     public const string DefaultSaveDirectory = @"D:\SteamLibrary\steamapps\common\LET IT DIE\Savedata";
-
-    private static readonly string[] GameProcessNames =
-    [
-        "BrgGame",
-        "BrgGame-Win64-Shipping",
-        "LETITDIE"
-    ];
 
     private readonly string _saveDirectory;
     private readonly string _backupRoot;
@@ -34,7 +26,7 @@ public sealed class SaveFileService : ISaveFileService
             "LidUtils",
             "backups",
             "saves");
-        _isGameRunning = isGameRunning ?? IsLetItDieRunning;
+        _isGameRunning = isGameRunning ?? LetItDieProcessDetector.IsRunning;
     }
 
     public Task<IReadOnlyList<string>> DiscoverAsync(
@@ -306,22 +298,6 @@ public sealed class SaveFileService : ISaveFileService
                 File.Delete(restorePath);
             }
         }
-    }
-
-    private static bool IsLetItDieRunning()
-    {
-        foreach (var process in Process.GetProcesses())
-        {
-            using (process)
-            {
-                if (GameProcessNames.Contains(process.ProcessName, StringComparer.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 
     private sealed record JsonReplacement(int Start, int Length, byte[] Value);

@@ -1,41 +1,14 @@
 # LET IT DIE Utilities
 
-A Windows desktop tool for inspecting Let It Die's `masters.db` and safely editing local save files.
+A Windows desktop utility for inspecting and safely editing Let It Die's `masters.db` and supported local save files.
 
 ## Current status
 
-The settings browser through Milestone 4 is implemented. The application can:
+The app finds and validates compatible Let It Die game databases, provides a searchable browser for constants and schema data, and lets you stage and review exact setting changes. Confirmed changes are applied in one SQLite transaction only after the game is closed and a full verified backup has been created. Original-value checks, integrity verification, audit records, and automatic recovery prevent partial writes.
 
-- Check `D:\SteamLibrary\steamapps\common\LET IT DIE\BrgGame\Content\masters.db` first.
-- Discover additional Steam libraries from `libraryfolders.vdf`.
-- Let the user select `masters.db` manually and remember that selection.
-- Validate the SQLite header and run `PRAGMA quick_check`.
-- Confirm the required constant tables and columns are present.
-- Calculate database and schema fingerprints.
-- Display validation results in a Windows interface.
-- Load integer, floating-point, and string constants asynchronously.
-- Search by key, value, or source table, sort columns, and filter by value type or key-prefix category.
-- Edit database setting drafts directly in the table, with inline validation, undo, and persisted row-based favorites.
-- Show the database path, validation status, modified time, and fingerprints.
-- Inspect every table/view, its columns, row count, and a read-only preview capped at 100 rows.
-- Load a versioned, strictly validated curated settings catalog.
-- Show curated labels, descriptions, categories, units, ranges, display formats, conversions, and risk levels.
-- Keep exact raw database text visible beside each editable draft.
-- Clearly mark constants missing from the catalog as undocumented and experimental.
-- Save favorite settings in local application preferences.
-- Stage integer, floating-point, and string constant changes entirely in memory.
-- Validate staged numeric values against catalog ranges and increments.
-- Review exact original/proposed raw-value diffs, reset one setting, or reset all pending changes.
-- Flag undocumented/experimental settings and unusually large numeric changes.
-- Revalidate and fingerprint the source database through read-only access before staging; if it changed, discard pending changes and require a reload.
-- Discover `.sav` files in `D:\SteamLibrary\steamapps\common\LET IT DIE\Savedata` or open one manually.
-- Validate and decode the BRG v2/zlib save container and expose its scalar JSON values as searchable paths.
-- Stage string, number, boolean, and null-safe edits entirely in memory while preserving all unedited JSON bytes exactly.
-- Recheck the source fingerprint and block writes while LET IT DIE is running.
-- Create and verify a timestamped backup under `%LOCALAPPDATA%\LidUtils\backups\saves` before every save write.
-- Atomically replace and then revalidate an edited save; automatically restore the verified backup if post-write verification fails.
+The save editor is available now. It opens supported local `.sav` files, exposes searchable scalar values, stages edits for confirmation, and applies them through a fingerprint-checked, backup-first atomic replacement workflow while the game is closed. It can also export decoded JSON for inspection.
 
-All `masters.db` access remains read-only and uses short-lived, non-pooled connections. Database edits are still staging-only. Save-file edits use a separate backup-first workflow and require explicit confirmation. The initial settings catalog is intentionally small while behavior is researched; undocumented constants remain accessible with an explicit warning.
+The database backup browser can restore snapshots for the selected database when the schema still matches. Backups and their metadata live under `%LOCALAPPDATA%\LidUtils\backups\databases`, audit records live under `%LOCALAPPDATA%\LidUtils\audit\databases`, and the global backup limit defaults to five. Catalog information remains helpful context, but every valid constant in the three supported tables can be changed.
 
 See [settings/CONTRIBUTING.md](settings/CONTRIBUTING.md) for the catalog format, validation rules, and contribution checklist.
 
@@ -55,7 +28,7 @@ dotnet build LidUtils.sln --no-restore
 dotnet test LidUtils.sln --no-build
 ```
 
-An optional local smoke test can validate an installed game database without writing to it:
+An optional local smoke test validates the installed database read-only, then exercises apply and restore only on a temporary snapshot:
 
 ```powershell
 $env:LID_UTILS_SMOKE_DB = 'D:\SteamLibrary\steamapps\common\LET IT DIE\BrgGame\Content\masters.db'

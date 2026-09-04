@@ -103,6 +103,49 @@ public partial class MainWindow : Window
         _viewModel.ResetAllChanges();
     }
 
+    private async void OnApplyDatabaseChanges(object sender, RoutedEventArgs e)
+    {
+        var count = _viewModel.PendingChanges.Count;
+        if (count == 0) return;
+        var answer = MessageBox.Show(
+            $"Apply {count:N0} staged database change(s)?\n\n" +
+            "LET IT DIE must be closed. A verified full-database backup will be created before all changes are applied in one transaction.",
+            "Apply database changes",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (answer == MessageBoxResult.Yes)
+        {
+            await _viewModel.ApplyDatabaseChangesAsync();
+        }
+    }
+
+    private async void OnRestoreDatabaseBackup(object sender, RoutedEventArgs e)
+    {
+        var selected = _viewModel.SelectedDatabaseBackup;
+        if (selected is null || !selected.IsEligible) return;
+        var answer = MessageBox.Show(
+            $"Restore the database backup from {selected.Created}?\n\n" +
+            "LET IT DIE must be closed. The current database will be backed up and verified before it is replaced.",
+            "Restore database backup",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (answer == MessageBoxResult.Yes)
+        {
+            await _viewModel.RestoreSelectedDatabaseBackupAsync();
+        }
+    }
+
+    private async void OnSaveDatabaseBackupLimit(object sender, RoutedEventArgs e)
+    {
+        if (!int.TryParse(DatabaseBackupRetentionText.Text, out var count) ||
+            !await _viewModel.SetDatabaseBackupRetentionAsync(count))
+        {
+            DatabaseBackupRetentionText.Text = _viewModel.DatabaseBackupRetentionCount.ToString();
+        }
+    }
+
     private async void OnBrowseSave(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog
@@ -190,12 +233,12 @@ public partial class MainWindow : Window
 
     private void OnClosing(object? sender, CancelEventArgs e)
     {
-        if (_viewModel.SaveEditor.IsApplying)
+        if (_viewModel.SaveEditor.IsApplying || _viewModel.IsDatabaseMaintenanceActive)
         {
             e.Cancel = true;
             MessageBox.Show(
-                "A save backup/write is still being verified. Wait for it to finish before closing the utility.",
-                "Save update in progress",
+                "A backup or write is still being verified. Wait for it to finish before closing the utility.",
+                "Update in progress",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
             return;

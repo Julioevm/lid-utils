@@ -37,12 +37,32 @@ public interface IReadOnlyDatabaseBrowser
         CancellationToken cancellationToken = default);
 }
 
+public interface IDatabaseMaintenanceService
+{
+    Task<DatabaseApplyResult> ApplyAsync(
+        DatabaseFileMetadata loadedSource,
+        IReadOnlyCollection<StagedSettingChange> changes,
+        int backupRetentionCount,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<DatabaseBackupInfo>> ListBackupsAsync(
+        string sourcePath,
+        CancellationToken cancellationToken = default);
+
+    Task<DatabaseRestoreResult> RestoreAsync(
+        string sourcePath,
+        Guid backupId,
+        int backupRetentionCount,
+        CancellationToken cancellationToken = default);
+}
+
 public sealed record AppPreferences(
     string? LastDatabasePath = null,
     IReadOnlyList<string>? FavoriteSettingIds = null,
     IReadOnlyList<string>? RecentlyViewedSettingIds = null,
     string? GameInstallPath = null,
-    IReadOnlyList<string>? FavoriteSaveValuePointers = null);
+    IReadOnlyList<string>? FavoriteSaveValuePointers = null,
+    int DatabaseBackupRetentionCount = 5);
 
 public interface IPreferencesStore
 {

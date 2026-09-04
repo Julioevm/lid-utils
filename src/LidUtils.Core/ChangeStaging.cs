@@ -96,9 +96,9 @@ public sealed class ChangeStagingService
     {
         var warnings = new List<string>();
         if (entry.Definition?.Risk == RiskLevel.Experimental)
-            warnings.Add("Experimental setting: its gameplay effect is not fully verified.");
+            warnings.Add("Catalog note: this setting's gameplay effect is still being verified.");
         else if (!entry.IsDocumented)
-            warnings.Add("Undocumented setting: verify the effect carefully before applying it in a future release.");
+            warnings.Add("This setting is not yet described in the curated catalog.");
         return warnings;
     }
 

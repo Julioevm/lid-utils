@@ -24,12 +24,14 @@ public partial class App : Application
             catalog = SettingsCatalog.Empty;
         }
 
+        var validator = new DatabaseValidator();
         var saveEditor = new SaveEditorViewModel(new SaveFileService());
         var viewModel = new MainWindowViewModel(
             new DatabaseDiscoveryService(),
-            new DatabaseValidator(),
+            validator,
             new JsonPreferencesStore(),
             new ReadOnlyDatabaseBrowser(),
+            new DatabaseMaintenanceService(validator),
             catalog,
             saveEditor);
 
