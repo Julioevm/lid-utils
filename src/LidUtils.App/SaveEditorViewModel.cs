@@ -9,13 +9,30 @@ namespace LidUtils.App;
 
 public sealed class SaveEditorViewModel : INotifyPropertyChanged
 {
-    private static readonly SaveCurrencyDefinition[] CurrencyDefinitions =
+    private static readonly SaveNumericFieldDefinition[] FieldDefinitions =
     [
-        new("Death Metals", "Premium currency for the Tengoku vending machine. Editing sets the free balance and zeroes the paid balance.", "/user/free_medal", "/user/paid_medal"),
-        new("Kill Coins", "Main shop currency. Editing sets the free balance and zeroes the paid balance.", "/soul/free_money", "/soul/paid_money"),
-        new("SPLithium", "Energy currency stored in the SPL tank and spent on waiting room facility upgrades.", "/soul/spirit", null),
-        new("Bloodnium", "Currency earned from defeated Haters; used for special exchanges.", "/soul/bloodnium_point", null),
-        new("RE Points", "Recycle points earned by recycling equipment; used for special exchanges.", "/soul/recycle_point", null)
+        new(SaveNumericFieldGroup.Currency, "Death Metals", "Premium currency for the Tengoku vending machine. Editing sets the free balance and zeroes the paid balance.", "/user/free_medal", "/user/paid_medal"),
+        new(SaveNumericFieldGroup.Currency, "Kill Coins", "Main shop currency. Editing sets the free balance and zeroes the paid balance.", "/soul/free_money", "/soul/paid_money"),
+        new(SaveNumericFieldGroup.Currency, "SPLithium", "Energy currency stored in the SPL tank and spent on waiting room facility upgrades.", "/soul/spirit"),
+        new(SaveNumericFieldGroup.Currency, "Bloodnium", "Currency earned from defeated Haters; used for special exchanges.", "/soul/bloodnium_point"),
+        new(SaveNumericFieldGroup.Currency, "RE Points", "Recycle points earned by recycling equipment; used for special exchanges.", "/soul/recycle_point"),
+        new(SaveNumericFieldGroup.WaitingRoom, "KC Bank level", "Waiting room storage bank level. Raises how much KC and SPLithium the bank holds.", "/soul/safe_level", null, 1, 100),
+        new(SaveNumericFieldGroup.WaitingRoom, "SPL Tank level", "Waiting room SPL tank level. Raises SPLithium storage capacity.", "/soul/spirit_tank_level", null, 1, 100),
+        new(SaveNumericFieldGroup.WaitingRoom, "Player Rank", "Player rank shown in the waiting room. The required rank points are staged to the official value for the chosen rank.", "/soul/rank", null, 1, 130, RankPointPointer: "/soul/rank_point"),
+        new(SaveNumericFieldGroup.Account, "Death Bag capacity", "Slot capacity of the Death Bag.", "/soul/bag_slot", null, 20, 70),
+        new(SaveNumericFieldGroup.Account, "Free continues", "Free continues available in the Tower of Barbs.", "/soul/free_continue_count", null, 0, 999, TwinPointer: "/soul/free_continue_max_count"),
+        new(SaveNumericFieldGroup.Account, "Login streak", "Consecutive login bonus days.", "/user/login_keep", null, 0, 365)
+    ];
+
+    private static readonly string[] VipPointers =
+    [
+        "/soul/vip/flag",
+        "/soul/vip/expired_time",
+        "/soul/vip/type",
+        "/soul/vip/automatic_renewal",
+        "/soul/vip/friendship",
+        "/soul/vip/pass_num",
+        "/soul/vip/oneday_pass_num"
     ];
 
     private readonly ISaveFileService _saveFileService;
@@ -24,8 +41,12 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     private readonly HashSet<string> _favoritePointers = new(StringComparer.Ordinal);
     private IReadOnlyList<SaveValueRow> _allValues = [];
     private IReadOnlyList<SaveValueRow> _displayedValues = [];
-    private IReadOnlyList<SaveCurrencyRow> _currencies = [];
+    private IReadOnlyList<SaveNumericFieldRow> _currencies = [];
+    private IReadOnlyList<SaveNumericFieldRow> _waitingRoomFields = [];
+    private IReadOnlyList<SaveNumericFieldRow> _accountFields = [];
+    private SaveVipSection? _vip;
     private Dictionary<string, SaveValueRow> _rowsByPointer = new(StringComparer.Ordinal);
+    private Dictionary<string, SaveValueEntry> _entriesByPointer = new(StringComparer.Ordinal);
     private SaveFileSnapshot? _snapshot;
     private string _savePath = "No save selected";
     private string _statusTitle = "Ready to inspect saves";
@@ -52,10 +73,28 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         private set => SetField(ref _displayedValues, value);
     }
 
-    public IReadOnlyList<SaveCurrencyRow> Currencies
+    public IReadOnlyList<SaveNumericFieldRow> Currencies
     {
         get => _currencies;
         private set => SetField(ref _currencies, value);
+    }
+
+    public IReadOnlyList<SaveNumericFieldRow> WaitingRoomFields
+    {
+        get => _waitingRoomFields;
+        private set => SetField(ref _waitingRoomFields, value);
+    }
+
+    public IReadOnlyList<SaveNumericFieldRow> AccountFields
+    {
+        get => _accountFields;
+        private set => SetField(ref _accountFields, value);
+    }
+
+    public SaveVipSection? Vip
+    {
+        get => _vip;
+        private set => SetField(ref _vip, value);
     }
 
     public ObservableCollection<StagedSaveChange> PendingChanges { get; } = [];
@@ -181,23 +220,26 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         RefreshPendingChanges();
     }
 
-    public void UndoCurrency(SaveCurrencyRow row)
+    public void UndoField(SaveNumericFieldRow row)
     {
         ArgumentNullException.ThrowIfNull(row);
-        ResetCurrencyPointers(row);
-        SyncCurrencyPointers(row);
+        ResetFieldPointers(row);
+        SyncFieldPointers(row);
         RefreshPendingChanges();
     }
 
-    private void StageCurrencyDraft(SaveCurrencyRow row, string? value)
+    private void StageFieldDraft(SaveNumericFieldRow row, string? value)
     {
         ArgumentNullException.ThrowIfNull(row);
         var trimmed = (value ?? string.Empty).Trim();
-        if (!long.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount) || amount < 0)
+        if (!long.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount) ||
+            amount < 0 ||
+            row.Definition.Minimum is { } minimum && amount < minimum ||
+            row.Definition.Maximum is { } maximum && amount > maximum)
         {
-            row.ValidationError = "Enter a whole number that is 0 or more.";
-            ResetCurrencyPointers(row);
-            SyncCurrencyPointers(row);
+            row.ValidationError = RangeError(row.Definition);
+            ResetFieldPointers(row);
+            SyncFieldPointers(row);
             RefreshPendingChanges();
             return;
         }
@@ -205,29 +247,110 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         row.ValidationError = string.Empty;
         if (amount == row.OriginalAmount)
         {
-            ResetCurrencyPointers(row);
+            ResetFieldPointers(row);
         }
         else
         {
-            _staging.Stage(row.MainEntry, amount.ToString(CultureInfo.InvariantCulture));
-            if (row.PaidEntry is not null) _staging.Stage(row.PaidEntry, "0");
+            StageFieldPointers(row, amount);
         }
 
-        SyncCurrencyPointers(row);
+        SyncFieldPointers(row);
         RefreshPendingChanges();
     }
 
-    private void ResetCurrencyPointers(SaveCurrencyRow row)
+    private static string RangeError(SaveNumericFieldDefinition definition) =>
+        definition.Minimum is { } minimum && definition.Maximum is { } maximum
+            ? $"Enter a whole number between {minimum} and {maximum}."
+            : "Enter a whole number that is 0 or more.";
+
+    private void StageFieldPointers(SaveNumericFieldRow row, long amount)
     {
-        _staging.Reset(row.MainEntry.Pointer);
-        if (row.PaidEntry is not null) _staging.Reset(row.PaidEntry.Pointer);
+        var amountText = amount.ToString(CultureInfo.InvariantCulture);
+        _staging.Stage(row.MainEntry, amountText);
+        if (row.ZeroedEntry is not null) _staging.Stage(row.ZeroedEntry, "0");
+        if (row.TwinEntry is not null) _staging.Stage(row.TwinEntry, amountText);
+        if (row.RankPointEntry is not null)
+            _staging.Stage(row.RankPointEntry, PlayerRankTable.ForRank(amount).ToString(CultureInfo.InvariantCulture));
     }
 
-    private void SyncCurrencyPointers(SaveCurrencyRow row)
+    private void ResetFieldPointers(SaveNumericFieldRow row)
+    {
+        _staging.Reset(row.MainEntry.Pointer);
+        if (row.ZeroedEntry is not null) _staging.Reset(row.ZeroedEntry.Pointer);
+        if (row.TwinEntry is not null) _staging.Reset(row.TwinEntry.Pointer);
+        if (row.RankPointEntry is not null) _staging.Reset(row.RankPointEntry.Pointer);
+    }
+
+    private void SyncFieldPointers(SaveNumericFieldRow row)
     {
         row.SyncFromStaging(_staging);
         SyncValueRowFromStaging(row.MainEntry.Pointer);
-        if (row.PaidEntry is not null) SyncValueRowFromStaging(row.PaidEntry.Pointer);
+        if (row.ZeroedEntry is not null) SyncValueRowFromStaging(row.ZeroedEntry.Pointer);
+        if (row.TwinEntry is not null) SyncValueRowFromStaging(row.TwinEntry.Pointer);
+        if (row.RankPointEntry is not null) SyncValueRowFromStaging(row.RankPointEntry.Pointer);
+    }
+
+    public void ActivateVip(int days)
+    {
+        if (Vip is not { IsAvailable: true }) return;
+        var safeDays = Math.Clamp(days, 1, SaveVipSection.MaximumVipDays);
+        Vip.SelectedDays = safeDays;
+        if (!TryParseReservePasses(Vip, out var reservePasses)) return;
+        var expiry = DateTimeOffset.UtcNow.ToUnixTimeSeconds() + safeDays * 86400L;
+        StageVipPointer("/soul/vip/flag", "1");
+        StageVipPointer("/soul/vip/expired_time", expiry.ToString(CultureInfo.InvariantCulture));
+        StageVipPointer("/soul/vip/type", "0");
+        StageVipPointer("/soul/vip/automatic_renewal", "0");
+        StageVipPointer("/soul/vip/friendship", "1");
+        var reservePassesText = reservePasses.ToString(CultureInfo.InvariantCulture);
+        StageVipPointer("/soul/vip/pass_num", reservePassesText);
+        StageVipPointer("/soul/vip/oneday_pass_num", reservePassesText);
+        SyncVipPointers();
+        RefreshPendingChanges();
+    }
+
+    private static bool TryParseReservePasses(SaveVipSection vip, out int reservePasses)
+    {
+        var trimmed = vip.ReservePassesText.Trim();
+        if (long.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount) &&
+            amount is >= 0 and <= SaveVipSection.MaximumReservePasses)
+        {
+            vip.ValidationError = string.Empty;
+            reservePasses = (int)amount;
+            return true;
+        }
+
+        vip.ValidationError = $"Enter a whole number between 0 and {SaveVipSection.MaximumReservePasses} for the reserve passes.";
+        reservePasses = 0;
+        return false;
+    }
+
+    public void DeactivateVip()
+    {
+        if (Vip is not { IsAvailable: true }) return;
+        StageVipPointer("/soul/vip/flag", "0");
+        StageVipPointer("/soul/vip/expired_time", "0");
+        SyncVipPointers();
+        RefreshPendingChanges();
+    }
+
+    public void UndoVip()
+    {
+        if (Vip is null) return;
+        foreach (var pointer in VipPointers) _staging.Reset(pointer);
+        SyncVipPointers();
+        RefreshPendingChanges();
+    }
+
+    private void StageVipPointer(string pointer, string value)
+    {
+        if (ResolveNumberEntry(pointer) is not { } entry) return;
+        _staging.Stage(entry, value);
+    }
+
+    private void SyncVipPointers()
+    {
+        foreach (var pointer in VipPointers) SyncValueRowFromStaging(pointer);
     }
 
     private void SyncValueRowFromStaging(string pointer)
@@ -295,7 +418,13 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         _allValues = catalogResult.Entries.OrderBy(value => value.DisplayPath, StringComparer.Ordinal)
             .Select(value => new SaveValueRow(value, _favoritePointers.Contains(value.Pointer), StageDraft)).ToArray();
         _rowsByPointer = _allValues.ToDictionary(row => row.Entry.Pointer, StringComparer.Ordinal);
-        Currencies = BuildCurrencyRows(snapshot.Entries);
+        _entriesByPointer = new Dictionary<string, SaveValueEntry>(StringComparer.Ordinal);
+        foreach (var entry in snapshot.Entries) _entriesByPointer[entry.Pointer] = entry;
+        var fieldRows = BuildFieldRows();
+        Currencies = fieldRows.Where(row => row.Definition.Group == SaveNumericFieldGroup.Currency).ToArray();
+        WaitingRoomFields = fieldRows.Where(row => row.Definition.Group == SaveNumericFieldGroup.WaitingRoom).ToArray();
+        AccountFields = fieldRows.Where(row => row.Definition.Group == SaveNumericFieldGroup.Account).ToArray();
+        Vip = BuildVipSection();
         SearchText = string.Empty;
         ApplyFilter();
         PendingChanges.Clear();
@@ -318,7 +447,11 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         _allValues = [];
         DisplayedValues = [];
         _rowsByPointer = new(StringComparer.Ordinal);
+        _entriesByPointer = new(StringComparer.Ordinal);
         Currencies = [];
+        WaitingRoomFields = [];
+        AccountFields = [];
+        Vip = null;
         _staging.ResetAll();
         PendingChanges.Clear();
         IsShowingStagedChanges = false;
@@ -335,7 +468,10 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     {
         PendingChanges.Clear();
         foreach (var change in _staging.PendingChanges) PendingChanges.Add(change);
-        foreach (var currency in Currencies) currency.SyncFromStaging(_staging);
+        foreach (var field in Currencies) field.SyncFromStaging(_staging);
+        foreach (var field in WaitingRoomFields) field.SyncFromStaging(_staging);
+        foreach (var field in AccountFields) field.SyncFromStaging(_staging);
+        if (Vip is not null) Vip.IsStaged = VipPointers.Any(pointer => _staging.Get(pointer) is not null);
         if (!HasPendingChanges && IsShowingStagedChanges) IsShowingStagedChanges = false;
         ApplyFilter();
         OnPropertyChanged(nameof(HasPendingChanges));
@@ -343,23 +479,42 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CanShowStagedChanges));
     }
 
-    private IReadOnlyList<SaveCurrencyRow> BuildCurrencyRows(IReadOnlyList<SaveValueEntry> entries)
+    private IReadOnlyList<SaveNumericFieldRow> BuildFieldRows()
     {
-        var byPointer = new Dictionary<string, SaveValueEntry>(StringComparer.Ordinal);
-        foreach (var entry in entries) byPointer[entry.Pointer] = entry;
-        var rows = new List<SaveCurrencyRow>();
-        foreach (var definition in CurrencyDefinitions)
+        var rows = new List<SaveNumericFieldRow>();
+        foreach (var definition in FieldDefinitions)
         {
-            if (!byPointer.TryGetValue(definition.MainPointer, out var main) || main.Type != SaveValueType.Number) continue;
-            SaveValueEntry? paid = null;
-            if (definition.PaidPointer is not null &&
-                byPointer.TryGetValue(definition.PaidPointer, out var paidEntry) &&
-                paidEntry.Type == SaveValueType.Number) paid = paidEntry;
-            rows.Add(new SaveCurrencyRow(definition, main, paid, StageCurrencyDraft));
+            if (!_entriesByPointer.TryGetValue(definition.MainPointer, out var main) || main.Type != SaveValueType.Number) continue;
+            rows.Add(new SaveNumericFieldRow(
+                definition,
+                main,
+                ResolveNumberEntry(definition.ZeroedPointer),
+                ResolveNumberEntry(definition.TwinPointer),
+                ResolveNumberEntry(definition.RankPointPointer),
+                StageFieldDraft));
         }
 
         return rows;
     }
+
+    private SaveValueEntry? ResolveNumberEntry(string? pointer) =>
+        pointer is not null &&
+        _entriesByPointer.TryGetValue(pointer, out var entry) &&
+        entry.Type == SaveValueType.Number ? entry : null;
+
+    private SaveVipSection BuildVipSection()
+    {
+        var flag = ResolveNumberEntry("/soul/vip/flag");
+        var expiry = ResolveNumberEntry("/soul/vip/expired_time");
+        if (flag is null || expiry is null) return SaveVipSection.Unavailable;
+        var flagValue = ParseEntryAmount(flag.Value);
+        var expiryValue = ParseEntryAmount(expiry.Value);
+        var isActive = flagValue == 1 && expiryValue > DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        return new SaveVipSection(true, isActive, expiryValue);
+    }
+
+    private static long ParseEntryAmount(string value) =>
+        long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount) ? amount : 0;
 
     private void ApplyFilter()
     {
@@ -463,46 +618,72 @@ public sealed class SaveValueRow : INotifyPropertyChanged
     }
 }
 
-public sealed record SaveCurrencyDefinition(
+public enum SaveNumericFieldGroup
+{
+    Currency,
+    WaitingRoom,
+    Account
+}
+
+public sealed record SaveNumericFieldDefinition(
+    SaveNumericFieldGroup Group,
     string Label,
     string Description,
     string MainPointer,
-    string? PaidPointer);
+    string? ZeroedPointer = null,
+    long? Minimum = null,
+    long? Maximum = null,
+    string? TwinPointer = null,
+    string? RankPointPointer = null);
 
-public sealed class SaveCurrencyRow : INotifyPropertyChanged
+public sealed class SaveNumericFieldRow : INotifyPropertyChanged
 {
     private readonly SaveValueEntry _main;
-    private readonly SaveValueEntry? _paid;
-    private readonly Action<SaveCurrencyRow, string?> _draftChanged;
+    private readonly SaveValueEntry? _zeroed;
+    private readonly SaveValueEntry? _twin;
+    private readonly SaveValueEntry? _rankPoint;
+    private readonly Action<SaveNumericFieldRow, string?> _draftChanged;
     private string _draftValue;
     private string _validationError = string.Empty;
     private bool _isStaged;
 
-    public SaveCurrencyRow(
-        SaveCurrencyDefinition definition,
+    public SaveNumericFieldRow(
+        SaveNumericFieldDefinition definition,
         SaveValueEntry main,
-        SaveValueEntry? paid,
-        Action<SaveCurrencyRow, string?> draftChanged)
+        SaveValueEntry? zeroed,
+        SaveValueEntry? twin,
+        SaveValueEntry? rankPoint,
+        Action<SaveNumericFieldRow, string?> draftChanged)
     {
         Definition = definition;
         _main = main;
-        _paid = paid;
+        _zeroed = zeroed;
+        _twin = twin;
+        _rankPoint = rankPoint;
         _draftChanged = draftChanged;
         _draftValue = CurrentValue;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
-    public SaveCurrencyDefinition Definition { get; }
+    public SaveNumericFieldDefinition Definition { get; }
     public SaveValueEntry MainEntry => _main;
-    public SaveValueEntry? PaidEntry => _paid;
+    public SaveValueEntry? ZeroedEntry => _zeroed;
+    public SaveValueEntry? TwinEntry => _twin;
+    public SaveValueEntry? RankPointEntry => _rankPoint;
     public string Label => Definition.Label;
     public string Description => Definition.Description;
-    public long OriginalAmount => ParseAmount(_main.Value) + (_paid is null ? 0 : ParseAmount(_paid.Value));
+    public long OriginalAmount => ParseAmount(_main.Value) + (_zeroed is null ? 0 : ParseAmount(_zeroed.Value));
     public string CurrentValue => OriginalAmount.ToString("N0", CultureInfo.CurrentCulture);
-    public string DetailsToolTip => string.Join(Environment.NewLine,
-        $"JSON path: {_main.Pointer}",
-        Definition.Description,
-        "Type: Number");
+    public string DetailsToolTip
+    {
+        get
+        {
+            var lines = new List<string> { $"JSON path: {_main.Pointer}", Definition.Description };
+            if (Definition.Minimum is { } minimum && Definition.Maximum is { } maximum) lines.Add($"Allowed range: {minimum} to {maximum}.");
+            lines.Add("Type: Number");
+            return string.Join(Environment.NewLine, lines);
+        }
+    }
     public string DraftValue
     {
         get => _draftValue;
@@ -543,5 +724,78 @@ public sealed class SaveCurrencyRow : INotifyPropertyChanged
         field = value;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         return true;
+    }
+}
+
+public sealed class SaveVipSection : INotifyPropertyChanged
+{
+    public const int MaximumVipDays = 30;
+    public const int MaximumReservePasses = 99;
+
+    private bool _isStaged;
+    private int _selectedDays = MaximumVipDays;
+    private string _reservePassesText = "99";
+    private string _validationError = string.Empty;
+
+    public SaveVipSection(bool isAvailable, bool isActive, long expiresAtUnixSeconds)
+    {
+        IsAvailable = isAvailable;
+        IsActive = isActive;
+        if (isActive)
+        {
+            var secondsRemaining = expiresAtUnixSeconds - DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var daysRemaining = Math.Max(0, (int)Math.Ceiling(secondsRemaining / 86400d));
+            StatusText = $"VIP Royal Express is active · {daysRemaining} day(s) remaining";
+        }
+        else
+        {
+            StatusText = "VIP Royal Express is inactive";
+        }
+
+        ExpiresText = expiresAtUnixSeconds > 0
+            ? $"Pass expiry: {DateTimeOffset.FromUnixTimeSeconds(expiresAtUnixSeconds).ToLocalTime():g}"
+            : "No pass expiry recorded.";
+    }
+
+    public static SaveVipSection Unavailable { get; } = new(false, false, 0);
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    public bool IsAvailable { get; }
+    public bool IsActive { get; }
+    public string StatusText { get; }
+    public string ExpiresText { get; }
+    public IReadOnlyList<int> DaysOptions { get; } = [1, 7, 15, MaximumVipDays];
+    public string DaysHint => $"Maximum {MaximumVipDays} active days to avoid reported elevator errors.";
+    public int SelectedDays { get => _selectedDays; set => SetField(ref _selectedDays, value); }
+    public string ReservePassesText { get => _reservePassesText; set => SetField(ref _reservePassesText, value); }
+    public string ValidationError { get => _validationError; set => SetField(ref _validationError, value); }
+    public bool IsStaged { get => _isStaged; set => SetField(ref _isStaged, value); }
+
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        return true;
+    }
+}
+
+public static class PlayerRankTable
+{
+    private static readonly long[] RankPoints =
+    [
+        0, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 1900, 2300, 2700, 3100, 3500, 3900, 4300, 4700, 5500,
+        6100, 6700, 7300, 7900, 8500, 9100, 9700, 10300, 10900, 11005, 22000, 33000, 44000, 55000, 66000, 77000, 88000, 99000, 110000, 120000,
+        173000, 226000, 279000, 332000, 385000, 438000, 491000, 544000, 597000, 650000, 715000, 780000, 845000, 910000, 975000, 1040000, 1105000, 1170000, 1235000, 1300005,
+        1400000, 1500000, 1600000, 1700000, 1800000, 1900000, 2000000, 2100000, 2200000, 14000000, 20100000, 26200000, 32300000, 38400000, 44500000, 50600000, 56700000, 62800000, 68900000, 75000000,
+        82500000, 90000000, 97500000, 105000000, 150000000, 150000001, 150000002, 150000003, 150000004, 150000005, 280000000, 410000000, 540000000, 670000000, 800000000, 960000000, 1120000000, 1280000000, 1440000000, 1600000000,
+        1600000001, 1600000002, 1600000003, 1600000004, 1600000005, 2980000000, 4360000000, 5740000000, 7120000000, 8500000000, 10200000000, 11900000000, 13600000000, 15300000000, 17000000000, 17000000001, 17000000002, 17000000003, 17000000004, 17000000005,
+        31600000000, 36000000000, 54000000000, 72000000000, 90000000000, 108000000000, 126000000000, 144000000000, 162000000000, 180000000000
+    ];
+
+    public static long ForRank(long rank)
+    {
+        var index = Math.Clamp(rank, 1, RankPoints.Length);
+        return RankPoints[index - 1];
     }
 }

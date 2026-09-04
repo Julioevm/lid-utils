@@ -94,12 +94,181 @@ public sealed class SaveEditorViewModelCurrencyTests
         deathMetals.DraftValue = "99";
         Assert.Equal(2, viewModel.PendingChanges.Count);
 
-        viewModel.UndoCurrency(deathMetals);
+        viewModel.UndoField(deathMetals);
 
         Assert.Empty(viewModel.PendingChanges);
         Assert.False(deathMetals.IsStaged);
         Assert.Equal(deathMetals.CurrentValue, deathMetals.DraftValue);
         Assert.True(viewModel.DisplayedValues.Where(row => row.Entry.Pointer.StartsWith("/user/", StringComparison.Ordinal)).All(row => !row.IsStaged));
+    }
+
+    [Fact]
+    public async Task RankDraft_SyncsRankPointsToOfficialRequirement()
+    {
+        var viewModel = await CreateEditorAsync(
+            Entry("/soul/rank", "10"),
+            Entry("/soul/rank_point", "1000"));
+
+        var rank = Assert.Single(viewModel.WaitingRoomFields, row => row.Label == "Player Rank");
+        rank.DraftValue = "40";
+
+        Assert.True(rank.IsStaged);
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/rank" && change.ProposedValue == "40");
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/rank_point" && change.OriginalValue == "1000" && change.ProposedValue == "120000");
+
+        viewModel.UndoField(rank);
+
+        Assert.Empty(viewModel.PendingChanges);
+        Assert.False(rank.IsStaged);
+    }
+
+    [Fact]
+    public async Task FieldDraft_EnforcesConfiguredRange()
+    {
+        var viewModel = await CreateEditorAsync(Entry("/soul/safe_level", "50"));
+
+        var bankLevel = Assert.Single(viewModel.WaitingRoomFields, row => row.Label == "KC Bank level");
+        bankLevel.DraftValue = "150";
+
+        Assert.Contains("between 1 and 100", bankLevel.ValidationError);
+        Assert.Empty(viewModel.PendingChanges);
+
+        bankLevel.DraftValue = "100";
+
+        Assert.Equal(string.Empty, bankLevel.ValidationError);
+        Assert.Equal("/soul/safe_level", Assert.Single(viewModel.PendingChanges).Pointer);
+    }
+
+    [Fact]
+    public async Task FreeContinues_StageBothCounters()
+    {
+        var viewModel = await CreateEditorAsync(
+            Entry("/soul/free_continue_count", "5"),
+            Entry("/soul/free_continue_max_count", "5"));
+
+        var continues = Assert.Single(viewModel.AccountFields, row => row.Label == "Free continues");
+        continues.DraftValue = "999";
+
+        Assert.Equal(2, viewModel.PendingChanges.Count);
+        Assert.All(viewModel.PendingChanges, change => Assert.Equal("999", change.ProposedValue));
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/free_continue_count");
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/free_continue_max_count");
+    }
+
+    [Fact]
+    public async Task ActivateVip_StagesSafePassValuesAndUndoClearsThem()
+    {
+        var before = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var viewModel = await CreateEditorAsync(
+            Entry("/soul/vip/flag", "0"),
+            Entry("/soul/vip/expired_time", "0"),
+            Entry("/soul/vip/type", "1"),
+            Entry("/soul/vip/automatic_renewal", "1"),
+            Entry("/soul/vip/friendship", "100"),
+            Entry("/soul/vip/pass_num", "0"),
+            Entry("/soul/vip/oneday_pass_num", "0"));
+        var after = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        Assert.True(viewModel.Vip!.IsAvailable);
+        Assert.False(viewModel.Vip.IsActive);
+
+        viewModel.ActivateVip(30);
+
+        Assert.True(viewModel.Vip.IsStaged);
+        Assert.Equal(7, viewModel.PendingChanges.Count);
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/vip/flag" && change.ProposedValue == "1");
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/vip/friendship" && change.ProposedValue == "1");
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/vip/type" && change.ProposedValue == "0");
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/vip/automatic_renewal" && change.ProposedValue == "0");
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/vip/pass_num" && change.ProposedValue == "99");
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/vip/oneday_pass_num" && change.ProposedValue == "99");
+        var expiry = Assert.Single(viewModel.PendingChanges, change => change.Pointer == "/soul/vip/expired_time");
+        Assert.True(long.TryParse(expiry.ProposedValue, out var expiryValue));
+        Assert.InRange(expiryValue, before + 30 * 86400L - 5, after + 30 * 86400L + 5);
+
+        viewModel.UndoVip();
+
+        Assert.Empty(viewModel.PendingChanges);
+        Assert.False(viewModel.Vip.IsStaged);
+    }
+
+    [Fact]
+    public async Task DeactivateVip_StagesInactivePassValues()
+    {
+        var viewModel = await CreateEditorAsync(
+            Entry("/soul/vip/flag", "1"),
+            Entry("/soul/vip/expired_time", $"{DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 10 * 86400L}"));
+
+        Assert.True(viewModel.Vip!.IsActive);
+
+        viewModel.DeactivateVip();
+
+        Assert.Equal(2, viewModel.PendingChanges.Count);
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/vip/flag" && change.ProposedValue == "0");
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/vip/expired_time" && change.ProposedValue == "0");
+    }
+
+    [Fact]
+    public async Task ActivateVip_ClampsTo30DaysAndStagesReservePasses()
+    {
+        var before = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var viewModel = await CreateEditorAsync(
+            Entry("/soul/vip/flag", "0"),
+            Entry("/soul/vip/expired_time", "0"),
+            Entry("/soul/vip/pass_num", "0"),
+            Entry("/soul/vip/oneday_pass_num", "0"));
+        var after = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        viewModel.Vip!.ReservePassesText = "50";
+        viewModel.ActivateVip(90);
+
+        Assert.Equal(30, viewModel.Vip.SelectedDays);
+        Assert.Equal(4, viewModel.PendingChanges.Count);
+        var expiry = Assert.Single(viewModel.PendingChanges, change => change.Pointer == "/soul/vip/expired_time");
+        Assert.True(long.TryParse(expiry.ProposedValue, out var expiryValue));
+        Assert.InRange(expiryValue, before + 30 * 86400L - 5, after + 30 * 86400L + 5);
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/vip/pass_num" && change.ProposedValue == "50");
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/vip/oneday_pass_num" && change.ProposedValue == "50");
+    }
+
+    [Fact]
+    public async Task ActivateVip_InvalidReservePassesShowsErrorWithoutStaging()
+    {
+        var viewModel = await CreateEditorAsync(
+            Entry("/soul/vip/flag", "0"),
+            Entry("/soul/vip/expired_time", "0"),
+            Entry("/soul/vip/pass_num", "0"),
+            Entry("/soul/vip/oneday_pass_num", "0"));
+
+        viewModel.Vip!.ReservePassesText = "500";
+        viewModel.ActivateVip(30);
+
+        Assert.Contains("between 0 and 99", viewModel.Vip.ValidationError);
+        Assert.Empty(viewModel.PendingChanges);
+        Assert.False(viewModel.Vip.IsStaged);
+
+        viewModel.Vip.ReservePassesText = "next month";
+        viewModel.ActivateVip(30);
+
+        Assert.Contains("between 0 and 99", viewModel.Vip.ValidationError);
+        Assert.Empty(viewModel.PendingChanges);
+
+        viewModel.Vip.ReservePassesText = "99";
+        viewModel.ActivateVip(30);
+
+        Assert.Equal(string.Empty, viewModel.Vip.ValidationError);
+        Assert.True(viewModel.Vip.IsStaged);
+    }
+
+    [Fact]
+    public async Task MissingVipPointers_MarkSectionUnavailable()
+    {
+        var viewModel = await CreateEditorAsync(Entry("/soul/spirit", "1234"));
+
+        Assert.NotNull(viewModel.Vip);
+        Assert.False(viewModel.Vip.IsAvailable);
+        viewModel.ActivateVip(30);
+        Assert.Empty(viewModel.PendingChanges);
     }
 
     [Fact]

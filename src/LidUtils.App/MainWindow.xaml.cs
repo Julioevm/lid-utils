@@ -211,10 +211,20 @@ public partial class MainWindow : Window
         if (sender is Button { DataContext: SaveValueRow row }) _viewModel.SaveEditor.UndoChange(row);
     }
 
-    private void OnUndoSaveCurrency(object sender, RoutedEventArgs e)
+    private void OnUndoSaveField(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { DataContext: SaveCurrencyRow row }) _viewModel.SaveEditor.UndoCurrency(row);
+        if (sender is Button { DataContext: SaveNumericFieldRow row }) _viewModel.SaveEditor.UndoField(row);
     }
+
+    private void OnActivateVip(object sender, RoutedEventArgs e)
+    {
+        var days = VipDaysCombo.SelectedItem as int? ?? 30;
+        _viewModel.SaveEditor.ActivateVip(days);
+    }
+
+    private void OnDeactivateVip(object sender, RoutedEventArgs e) => _viewModel.SaveEditor.DeactivateVip();
+
+    private void OnUndoVip(object sender, RoutedEventArgs e) => _viewModel.SaveEditor.UndoVip();
 
     private void OnToggleSaveFavorite(object sender, RoutedEventArgs e)
     {

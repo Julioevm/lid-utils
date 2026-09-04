@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "2026.09.2",
+  "catalogVersion": "2026.09.3",
   "values": [
     {
       "pointer": "/user/free_medal",
@@ -49,6 +49,111 @@
       "label": "RE Points",
       "description": "Recycle points earned by recycling equipment; used for special exchanges.",
       "category": "Currency",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/safe_level",
+      "label": "KC Bank level",
+      "description": "Waiting room storage bank level. Raises how much KC and SPLithium the bank holds.",
+      "category": "Waiting room",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/spirit_tank_level",
+      "label": "SPL Tank level",
+      "description": "Waiting room SPL tank level. Raises SPLithium storage capacity.",
+      "category": "Waiting room",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/rank",
+      "label": "Player Rank",
+      "description": "Player rank shown in the waiting room.",
+      "category": "Waiting room",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/rank_point",
+      "label": "Player Rank points",
+      "description": "Rank points. The game derives the displayed rank from this value.",
+      "category": "Waiting room",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/bag_slot",
+      "label": "Death Bag capacity",
+      "description": "Slot capacity of the Death Bag.",
+      "category": "Account",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/free_continue_count",
+      "label": "Free continues",
+      "description": "Free continues available in the Tower of Barbs.",
+      "category": "Account",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/free_continue_max_count",
+      "label": "Free continues (max)",
+      "description": "Maximum free continues stored for the Tower of Barbs.",
+      "category": "Account",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/user/login_keep",
+      "label": "Login streak",
+      "description": "Consecutive login bonus days.",
+      "category": "Account",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/vip/flag",
+      "label": "VIP pass flag",
+      "description": "1 while the Royal Express VIP pass is active, 0 otherwise.",
+      "category": "VIP",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/vip/expired_time",
+      "label": "VIP pass expiry",
+      "description": "Unix timestamp of when the Royal Express VIP pass expires.",
+      "category": "VIP",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/vip/type",
+      "label": "VIP pass type",
+      "description": "Royal Express pass type.",
+      "category": "VIP",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/vip/automatic_renewal",
+      "label": "VIP automatic renewal",
+      "description": "Whether the Royal Express pass renews automatically.",
+      "category": "VIP",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/vip/friendship",
+      "label": "VIP friendship",
+      "description": "Elevator attendant friendship. Keep at 1; other values are known to break the Royal Express elevator.",
+      "category": "VIP",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/vip/pass_num",
+      "label": "VIP 30-day passes in reserve",
+      "description": "Stored 30-day Royal Express passes.",
+      "category": "VIP",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/vip/oneday_pass_num",
+      "label": "VIP 1-day passes in reserve",
+      "description": "Stored 1-day Royal Express passes.",
+      "category": "VIP",
       "valueType": "number"
     }
   ]
