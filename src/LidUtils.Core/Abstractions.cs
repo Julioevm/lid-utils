@@ -45,6 +45,22 @@ public interface IDatabaseMaintenanceService
         int backupRetentionCount,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Applies curated setting edits together with rows staged by the Advanced editor.
+    /// Implementations that predate advanced editing remain usable for settings-only callers.
+    /// </summary>
+    Task<DatabaseApplyResult> ApplyWithTableChangesAsync(
+        DatabaseFileMetadata loadedSource,
+        IReadOnlyCollection<StagedSettingChange> settingChanges,
+        IReadOnlyCollection<StagedTableRowChange> tableChanges,
+        int backupRetentionCount,
+        CancellationToken cancellationToken = default)
+    {
+        if (tableChanges.Count > 0)
+            throw new NotSupportedException("This database service does not support Advanced table edits.");
+        return ApplyAsync(loadedSource, settingChanges, backupRetentionCount, cancellationToken);
+    }
+
     Task<IReadOnlyList<DatabaseBackupInfo>> ListBackupsAsync(
         string sourcePath,
         CancellationToken cancellationToken = default);

@@ -6,6 +6,37 @@ namespace LidUtils.Data.Tests;
 public sealed class DatabaseMaintenanceServiceTests
 {
     [Fact]
+    public async Task ApplyWithTableChanges_UpdatesAnAdvancedTableRowByPrimaryKey()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var databasePath = Path.Combine(temporaryDirectory.Path, "masters.db");
+        await CreateDatabaseAsync(databasePath);
+        await ExecuteAsync(databasePath, "CREATE TABLE advanced_values (id INTEGER PRIMARY KEY, label TEXT, amount REAL); INSERT INTO advanced_values VALUES (1, 'before', 2.5);");
+        var validator = new DatabaseValidator();
+        var loaded = await validator.ValidateAsync(databasePath);
+        Assert.True(loaded.IsValid, loaded.Message);
+        var service = new DatabaseMaintenanceService(validator, Path.Combine(temporaryDirectory.Path, "backups"), Path.Combine(temporaryDirectory.Path, "audit"), () => false);
+
+        await service.ApplyWithTableChangesAsync(loaded.Metadata!, [],
+        [
+            new StagedTableRowChange("advanced_values", [new TableKeyValue("id", 1L)],
+            [
+                new StagedTableCellChange("label", "before", "after"),
+                new StagedTableCellChange("amount", 2.5d, 4d)
+            ])
+        ], 5);
+
+        await using var connection = new SqliteConnection($"Data Source={databasePath};Mode=ReadOnly;Pooling=False");
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT label, amount FROM advanced_values WHERE id = 1;";
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal("after", reader.GetString(0));
+        Assert.Equal(4d, reader.GetDouble(1));
+    }
+
+    [Fact]
     public async Task ApplyAndRestore_CreateVerifiedBackupsAuditAndExactValues()
     {
         using var temporaryDirectory = new TemporaryDirectory();

@@ -40,6 +40,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private CancellationTokenSource? _operationCancellation;
     private DatabaseBackupRow? _selectedDatabaseBackup;
     private bool _isDatabaseMaintenanceActive;
+    private TablePreview? _selectedTablePreview;
 
     public MainWindowViewModel(
         IDatabaseDiscoveryService discoveryService,
@@ -70,8 +71,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public ObservableCollection<string> Categories { get; } = ["All categories"];
     public IReadOnlyList<string> Types { get; } = ["All types", "Integer", "Float", "String"];
     public ObservableCollection<SchemaTable> SchemaTables { get; } = [];
-    public ObservableCollection<TablePreviewRow> PreviewRows { get; } = [];
+    public ObservableCollection<AdvancedTableRow> PreviewRows { get; } = [];
     public ObservableCollection<StagedSettingChange> PendingChanges { get; } = [];
+    public ObservableCollection<DatabaseChangeReviewRow> ChangeReviewRows { get; } = [];
     public ObservableCollection<DatabaseBackupRow> DatabaseBackups { get; } = [];
 
     public string DatabasePath
@@ -138,10 +140,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(CanApplyDatabaseChanges));
         }
     }
-    public bool HasPendingChanges => _changeStaging.HasPendingChanges;
+    public bool HasPendingChanges => _changeStaging.HasPendingChanges || GetAdvancedChanges().Count > 0;
     public bool CanApplyDatabaseChanges =>
         HasPendingChanges &&
         !_changeStaging.HasInvalidDrafts &&
+        !PreviewRows.Any(row => row.HasInvalidDraft) &&
         !HasUnsettledDatabaseDrafts &&
         _loadedMetadata is not null &&
         !SourceDatabaseChanged &&
@@ -168,6 +171,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
     public SchemaTable? SelectedSchemaTable { get => _selectedSchemaTable; set => SetField(ref _selectedSchemaTable, value); }
+    public TablePreview? SelectedTablePreview { get => _selectedTablePreview; private set => SetField(ref _selectedTablePreview, value); }
 
     public bool IsBusy
     {
@@ -254,14 +258,24 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         if (SelectedSchemaTable is null || !File.Exists(DatabasePath)) return;
         var selectedName = SelectedSchemaTable.Name;
         PreviewRows.Clear();
-        SchemaSummary = $"Loading {selectedName} preview…";
+        SelectedTablePreview = null;
+        SchemaSummary = $"Loading {selectedName}…";
         try
         {
             var preview = await Task.Run(
                 () => _browser.LoadTablePreviewAsync(DatabasePath, selectedName));
-            foreach (var row in preview.Rows) PreviewRows.Add(row);
-            SchemaSummary = $"{string.Join("  |  ", preview.ColumnNames)}{Environment.NewLine}{preview.Rows.Count:N0} preview rows" +
-                (preview.IsTruncated ? " (first 100 shown)." : ".");
+            SelectedTablePreview = preview;
+            foreach (var row in preview.Rows)
+            {
+                var editRow = new AdvancedTableRow(row, preview.ColumnNames, preview.PrimaryKeyColumns ?? [], preview.CanEditRows);
+                editRow.DraftChanged += (_, _) => RefreshPendingChanges();
+                PreviewRows.Add(editRow);
+            }
+            SchemaSummary = $"{preview.Rows.Count:N0} row(s) loaded" +
+                (preview.IsTruncated ? " (first 100 shown)." : ".") +
+                (preview.CanEditRows
+                    ? " Edit cells to stage changes; enter <NULL> to store a SQL NULL."
+                    : $" {preview.EditDisabledReason}");
         }
         catch (Exception exception)
         {
@@ -290,9 +304,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public Task ApplyDatabaseChangesAsync() => RunBusyAsync(async cancellationToken =>
     {
+        var tableChanges = GetAdvancedChanges();
         if (_loadedMetadata is null ||
-            !_changeStaging.HasPendingChanges ||
+            (!_changeStaging.HasPendingChanges && tableChanges.Count == 0) ||
             _changeStaging.HasInvalidDrafts ||
+            PreviewRows.Any(row => row.HasInvalidDraft) ||
             HasUnsettledDatabaseDrafts ||
             SourceDatabaseChanged) return;
         var changes = _changeStaging.PendingChanges.ToArray();
@@ -302,16 +318,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             StatusTitle = "Backing up and applying…";
             StatusDetails = "Creating and verifying a database backup, then applying the complete change set in one transaction.";
             var result = await Task.Run(
-                () => _databaseMaintenance.ApplyAsync(
+                () => _databaseMaintenance.ApplyWithTableChangesAsync(
                     _loadedMetadata,
                     changes,
+                    tableChanges,
                     DatabaseBackupRetentionCount,
                     cancellationToken),
                 cancellationToken);
             _changeStaging.ResetAll();
             await ValidateAndLoadAsync(result.UpdatedMetadata.Path, false, cancellationToken);
             StatusTitle = "Database updated safely";
-            StatusDetails = $"Applied {changes.Length:N0} change(s). Verified backup: {result.Backup.BackupPath}" +
+            StatusDetails = $"Applied {changes.Length + tableChanges.Sum(change => change.Cells.Count):N0} change(s). Verified backup: {result.Backup.BackupPath}" +
                 FormatWarnings(result.Warnings);
         }
         finally
@@ -390,7 +407,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         _changeStaging.ResetAll();
         foreach (var row in Settings) row.ResetEditState();
+        foreach (var row in PreviewRows) row.Undo();
         RefreshPendingChanges();
+    }
+
+    public void UndoAdvancedRow(AdvancedTableRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        row.Undo();
     }
 
     private void OnRowDraftChanged(DatabaseSettingRow row)
@@ -542,9 +566,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         Settings.Clear();
         SchemaTables.Clear();
         PreviewRows.Clear();
+        SelectedTablePreview = null;
         DatabaseBackups.Clear();
         _changeStaging.ResetAll();
         PendingChanges.Clear();
+        ChangeReviewRows.Clear();
         _loadedMetadata = null;
         SourceDatabaseChanged = false;
         Categories.Clear();
@@ -564,9 +590,34 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     {
         PendingChanges.Clear();
         foreach (var change in _changeStaging.PendingChanges) PendingChanges.Add(change);
+        ChangeReviewRows.Clear();
+        foreach (var change in PendingChanges)
+            ChangeReviewRows.Add(new DatabaseChangeReviewRow(change.SettingLabel, change.Source, change.OriginalRawValue, change.ProposedRawValue, change.WarningSummary));
+        foreach (var change in GetAdvancedChanges())
+        {
+            foreach (var cell in change.Cells)
+                ChangeReviewRows.Add(new DatabaseChangeReviewRow(
+                    change.TableName,
+                    $"{change.Source}.{cell.ColumnName}",
+                    FormatTableValue(cell.OriginalValue),
+                    FormatTableValue(cell.ProposedValue),
+                    "Advanced table edit"));
+        }
         OnPropertyChanged(nameof(HasPendingChanges));
         OnPropertyChanged(nameof(CanApplyDatabaseChanges));
     }
+
+    private IReadOnlyList<StagedTableRowChange> GetAdvancedChanges() =>
+        SelectedTablePreview is null
+            ? []
+            : PreviewRows.Select(row => row.BuildChange(SelectedTablePreview.TableName)).OfType<StagedTableRowChange>().ToArray();
+
+    private static string FormatTableValue(object? value) => value switch
+    {
+        null => "<NULL>",
+        byte[] bytes => $"<BLOB {bytes.Length:N0} bytes>",
+        _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
+    };
 
     private bool HasUnsettledDatabaseDrafts => Settings.Any(row =>
     {

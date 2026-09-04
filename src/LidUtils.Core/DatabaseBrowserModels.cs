@@ -42,22 +42,39 @@ public sealed record SchemaColumn(
     string Name,
     string DeclaredType,
     bool IsNullable,
-    bool IsPrimaryKey);
+    bool IsPrimaryKey,
+    int PrimaryKeyOrder = 0);
 
 public sealed record SchemaTable(
     string Name,
     string ObjectType,
     long? RowCount,
     IReadOnlyList<SchemaColumn> Columns,
-    string CreateSql)
+    string CreateSql,
+    bool CanEditRows = false,
+    string? EditDisabledReason = null)
 {
     public string Summary => RowCount is null ? ObjectType : $"{ObjectType} · {RowCount:N0} rows";
 }
 
-public sealed record TablePreviewRow(string DisplayValue);
+public sealed record TablePreviewCell(string DisplayValue, object? Value, bool IsBlob = false);
+
+public sealed record TablePreviewRow(IReadOnlyList<TablePreviewCell> Cells)
+{
+    // Retained for callers that use a compact textual preview.
+    public string DisplayValue => string.Join("  |  ", Cells.Select(cell => cell.DisplayValue));
+
+    public TablePreviewRow(string displayValue)
+        : this([new TablePreviewCell(displayValue, displayValue)])
+    {
+    }
+}
 
 public sealed record TablePreview(
     string TableName,
     IReadOnlyList<string> ColumnNames,
     IReadOnlyList<TablePreviewRow> Rows,
-    bool IsTruncated);
+    bool IsTruncated,
+    bool CanEditRows = false,
+    IReadOnlyList<string>? PrimaryKeyColumns = null,
+    string? EditDisabledReason = null);

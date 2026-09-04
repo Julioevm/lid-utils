@@ -56,11 +56,20 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
         IReadOnlyCollection<StagedSettingChange> changes,
         int backupRetentionCount,
         CancellationToken cancellationToken = default)
+        => await ApplyWithTableChangesAsync(loadedSource, changes, [], backupRetentionCount, cancellationToken);
+
+    public async Task<DatabaseApplyResult> ApplyWithTableChangesAsync(
+        DatabaseFileMetadata loadedSource,
+        IReadOnlyCollection<StagedSettingChange> changes,
+        IReadOnlyCollection<StagedTableRowChange> tableChanges,
+        int backupRetentionCount,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(loadedSource);
         ArgumentNullException.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(tableChanges);
         ValidateRetention(backupRetentionCount);
-        ValidateChanges(changes);
+        ValidateChanges(changes, tableChanges);
         EnsureGameClosed();
 
         var source = await RequireUnchangedSourceAsync(loadedSource, cancellationToken);
@@ -79,7 +88,12 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
                 change.Entry.SourceTable,
                 change.Entry.Key,
                 change.OriginalRawValue,
-                change.ProposedRawValue)).ToArray());
+                change.ProposedRawValue))
+            .Concat(tableChanges.SelectMany(change => change.Cells.Select(cell => new DatabaseAuditChange(
+                change.TableName,
+                $"{change.Source}.{cell.ColumnName}",
+                FormatAuditValue(cell.OriginalValue),
+                FormatAuditValue(cell.ProposedValue))))).ToArray());
         var auditPath = await CreateAuditAsync(audit, cancellationToken);
         var committed = false;
 
@@ -96,13 +110,19 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
             }
 
             await ValidateWritableSchemaAsync(connection, cancellationToken);
+            await ValidateAdvancedTableSchemasAsync(connection, tableChanges, cancellationToken);
             EnsureGameClosed();
             foreach (var change in changes)
             {
                 await ApplyChangeAsync(connection, change, cancellationToken);
             }
+            foreach (var change in tableChanges)
+            {
+                await ApplyTableRowChangeAsync(connection, change, cancellationToken);
+            }
 
-            await RequireIntegrityAsync(connection, changes.Select(change => change.Entry.SourceTable), cancellationToken);
+            await RequireIntegrityAsync(connection, changes.Select(change => change.Entry.SourceTable)
+                .Concat(tableChanges.Select(change => change.TableName)), cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             committed = true;
         }
@@ -127,6 +147,7 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
             }
 
             await VerifyAppliedValuesAsync(source.Path, changes, cancellationToken);
+            await VerifyAppliedTableValuesAsync(source.Path, tableChanges, cancellationToken);
         }
         catch (Exception exception)
         {
@@ -466,6 +487,103 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
         }
     }
 
+    private static async Task ApplyTableRowChangeAsync(
+        SqliteConnection connection,
+        StagedTableRowChange change,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        var assignments = change.Cells.Select((cell, index) => $"{QuoteIdentifier(cell.ColumnName)} = $new{index}").ToArray();
+        var predicates = change.OriginalKeyValues.Select((key, index) => $"{QuoteIdentifier(key.ColumnName)} IS $key{index}").ToArray();
+        command.CommandText = $"UPDATE {QuoteIdentifier(change.TableName)} SET {string.Join(", ", assignments)} WHERE {string.Join(" AND ", predicates)};";
+        foreach (var (cell, index) in change.Cells.Select((cell, index) => (cell, index)))
+            command.Parameters.AddWithValue($"$new{index}", cell.ProposedValue ?? DBNull.Value);
+        foreach (var (key, index) in change.OriginalKeyValues.Select((key, index) => (key, index)))
+            command.Parameters.AddWithValue($"$key{index}", key.OriginalValue ?? DBNull.Value);
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        {
+            throw Error(DatabaseOperationError.SourceChanged,
+                $"Row '{change.Source}' changed after it was loaded. No changes were committed.");
+        }
+    }
+
+    private static async Task VerifyAppliedTableValuesAsync(
+        string path,
+        IReadOnlyCollection<StagedTableRowChange> changes,
+        CancellationToken cancellationToken)
+    {
+        if (changes.Count == 0) return;
+        await using var connection = await OpenReadOnlyAsync(path, cancellationToken);
+        foreach (var change in changes)
+        {
+            var finalKeys = change.OriginalKeyValues.Select(key => new TableKeyValue(
+                key.ColumnName,
+                change.Cells.FirstOrDefault(cell => string.Equals(cell.ColumnName, key.ColumnName, StringComparison.Ordinal))?.ProposedValue ?? key.OriginalValue)).ToArray();
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT {string.Join(", ", change.Cells.Select(cell => QuoteIdentifier(cell.ColumnName)))} FROM {QuoteIdentifier(change.TableName)} WHERE {string.Join(" AND ", finalKeys.Select((key, index) => $"{QuoteIdentifier(key.ColumnName)} IS $key{index}"))};";
+            foreach (var (key, index) in finalKeys.Select((key, index) => (key, index)))
+                command.Parameters.AddWithValue($"$key{index}", key.OriginalValue ?? DBNull.Value);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+                throw Error(DatabaseOperationError.VerificationFailed, $"Post-write verification could not find row '{change.Source}'.");
+            for (var index = 0; index < change.Cells.Count; index++)
+            {
+                var actual = reader.IsDBNull(index) ? null : reader.GetValue(index);
+                if (!DatabaseValuesEqual(actual, change.Cells[index].ProposedValue))
+                {
+                    throw Error(DatabaseOperationError.VerificationFailed,
+                        $"Post-write verification failed for '{change.Source}.{change.Cells[index].ColumnName}'.");
+                }
+            }
+        }
+    }
+
+    private static bool DatabaseValuesEqual(object? actual, object? expected) => (actual, expected) switch
+    {
+        (null, null) => true,
+        (byte[] left, byte[] right) => left.SequenceEqual(right),
+        (long left, long right) => left == right,
+        (double left, double right) => left.Equals(right),
+        (long left, string right) => long.TryParse(right, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) && left == value,
+        (double left, string right) => double.TryParse(right, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) && double.IsFinite(value) && left.Equals(value),
+        _ => Equals(actual, expected)
+    };
+
+    private static async Task ValidateAdvancedTableSchemasAsync(
+        SqliteConnection connection,
+        IReadOnlyCollection<StagedTableRowChange> changes,
+        CancellationToken cancellationToken)
+    {
+        foreach (var change in changes)
+        {
+            await using var objectCommand = connection.CreateCommand();
+            objectCommand.CommandText = "SELECT type, COALESCE(sql, '') FROM sqlite_schema WHERE name = $name;";
+            objectCommand.Parameters.AddWithValue("$name", change.TableName);
+            await using var reader = await objectCommand.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken) || !string.Equals(reader.GetString(0), "table", StringComparison.Ordinal) ||
+                reader.GetString(1).StartsWith("CREATE VIRTUAL", StringComparison.OrdinalIgnoreCase))
+            {
+                throw Error(DatabaseOperationError.UnsupportedWriteSchema,
+                    $"'{change.TableName}' is not an ordinary editable SQLite table.");
+            }
+
+            var columns = new List<(string Name, int PrimaryKey)>();
+            await using var columnCommand = connection.CreateCommand();
+            columnCommand.CommandText = "SELECT name, pk FROM pragma_table_info($table) ORDER BY cid;";
+            columnCommand.Parameters.AddWithValue("$table", change.TableName);
+            await using var columnReader = await columnCommand.ExecuteReaderAsync(cancellationToken);
+            while (await columnReader.ReadAsync(cancellationToken)) columns.Add((columnReader.GetString(0), columnReader.GetInt32(1)));
+
+            var primaryKeys = columns.Where(column => column.PrimaryKey > 0).OrderBy(column => column.PrimaryKey).Select(column => column.Name).ToArray();
+            if (primaryKeys.Length == 0 || !primaryKeys.SequenceEqual(change.OriginalKeyValues.Select(key => key.ColumnName), StringComparer.Ordinal) ||
+                change.Cells.Any(cell => !columns.Any(column => string.Equals(column.Name, cell.ColumnName, StringComparison.Ordinal))))
+            {
+                throw Error(DatabaseOperationError.UnsupportedWriteSchema,
+                    $"'{change.TableName}' no longer has the columns and primary key loaded by Advanced mode.");
+            }
+        }
+    }
+
     private static async Task ValidateWritableSchemaAsync(
         SqliteConnection connection,
         CancellationToken cancellationToken)
@@ -698,9 +816,11 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
         }
     }
 
-    private static void ValidateChanges(IReadOnlyCollection<StagedSettingChange> changes)
+    private static void ValidateChanges(
+        IReadOnlyCollection<StagedSettingChange> changes,
+        IReadOnlyCollection<StagedTableRowChange> tableChanges)
     {
-        if (changes.Count == 0 || changes.Any(change => !change.IsValid))
+        if ((changes.Count == 0 && tableChanges.Count == 0) || changes.Any(change => !change.IsValid))
         {
             throw Error(DatabaseOperationError.InvalidChangeSet,
                 "There are no fully validated database changes to apply.");
@@ -719,7 +839,23 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
                     $"Setting '{change.Source}' is not in a supported writable table.");
             }
         }
+
+        if (tableChanges.Any(change => string.IsNullOrWhiteSpace(change.TableName) ||
+            change.OriginalKeyValues.Count == 0 || change.Cells.Count == 0 ||
+            change.OriginalKeyValues.Any(key => string.IsNullOrWhiteSpace(key.ColumnName)) ||
+            change.Cells.Any(cell => string.IsNullOrWhiteSpace(cell.ColumnName))) ||
+            tableChanges.Select(change => change.Source).Distinct(StringComparer.Ordinal).Count() != tableChanges.Count)
+        {
+            throw Error(DatabaseOperationError.InvalidChangeSet, "The Advanced table change set is incomplete or contains duplicate rows.");
+        }
     }
+
+    private static string? FormatAuditValue(object? value) => value switch
+    {
+        null => null,
+        byte[] bytes => Convert.ToHexString(bytes),
+        _ => Convert.ToString(value, CultureInfo.InvariantCulture)
+    };
 
     private void EnsureGameClosed()
     {

@@ -75,7 +75,18 @@ public sealed class ReadOnlyDatabaseBrowser : IReadOnlyDatabaseBrowser
                 rowCount = Convert.ToInt64(await countCommand.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
             }
 
-            result.Add(new SchemaTable(item.Name, item.Type, rowCount, columns, item.Sql));
+            var primaryKeys = columns.Where(column => column.IsPrimaryKey).OrderBy(column => column.PrimaryKeyOrder).ToArray();
+            var canEditRows = item.Type == "table" && primaryKeys.Length > 0;
+            result.Add(new SchemaTable(
+                item.Name,
+                item.Type,
+                rowCount,
+                columns,
+                item.Sql,
+                canEditRows,
+                canEditRows ? null : item.Type == "view"
+                    ? "Views are read-only in Advanced mode."
+                    : "A primary key is required to edit rows safely."));
         }
 
         return result;
@@ -100,6 +111,13 @@ public sealed class ReadOnlyDatabaseBrowser : IReadOnlyDatabaseBrowser
             throw new ArgumentException("The selected table or view does not exist.", nameof(tableName));
         }
 
+        var columns = await LoadColumnsAsync(connection, tableName, cancellationToken);
+        var primaryKeys = columns.Where(column => column.IsPrimaryKey).OrderBy(column => column.PrimaryKeyOrder).ToArray();
+        var canEditRows = tables.Contains(tableName) && primaryKeys.Length > 0;
+        var editDisabledReason = canEditRows ? null : tables.Contains(tableName)
+            ? "A primary key is required to edit rows safely."
+            : "Views are read-only in Advanced mode.";
+
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT * FROM {QuoteIdentifier(tableName)} LIMIT $limit;";
         command.Parameters.AddWithValue("$limit", maximumRows + 1);
@@ -108,13 +126,14 @@ public sealed class ReadOnlyDatabaseBrowser : IReadOnlyDatabaseBrowser
         var rows = new List<TablePreviewRow>();
         while (rows.Count <= maximumRows && await reader.ReadAsync(cancellationToken))
         {
-            var values = new string[reader.FieldCount];
+            var values = new TablePreviewCell[reader.FieldCount];
             for (var index = 0; index < reader.FieldCount; index++)
             {
-                values[index] = FormatCell(reader, index);
+                var value = reader.IsDBNull(index) ? null : reader.GetValue(index);
+                values[index] = new TablePreviewCell(FormatCell(reader, index), value, value is byte[]);
             }
 
-            rows.Add(new TablePreviewRow(string.Join("  |  ", values)));
+            rows.Add(new TablePreviewRow(values));
         }
 
         var isTruncated = rows.Count > maximumRows;
@@ -123,7 +142,8 @@ public sealed class ReadOnlyDatabaseBrowser : IReadOnlyDatabaseBrowser
             rows.RemoveAt(rows.Count - 1);
         }
 
-        return new TablePreview(tableName, columnNames, rows, isTruncated);
+        return new TablePreview(tableName, columnNames, rows, isTruncated, canEditRows,
+            primaryKeys.Select(column => column.Name).ToArray(), editDisabledReason);
     }
 
     private static async Task<SqliteConnection> OpenReadOnlyAsync(string path, CancellationToken cancellationToken)
@@ -175,7 +195,8 @@ public sealed class ReadOnlyDatabaseBrowser : IReadOnlyDatabaseBrowser
                 reader.GetString(1),
                 reader.GetString(2),
                 reader.GetInt32(3) == 0,
-                reader.GetInt32(4) > 0));
+                reader.GetInt32(4) > 0,
+                reader.GetInt32(4)));
         }
 
         return columns;

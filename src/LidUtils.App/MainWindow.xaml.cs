@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using Microsoft.Win32;
 
 namespace LidUtils.App;
@@ -63,6 +64,66 @@ public partial class MainWindow : Window
     private async void OnSchemaSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         await _viewModel.LoadSelectedTablePreviewAsync();
+        ConfigureAdvancedTableGrid();
+    }
+
+    private void ConfigureAdvancedTableGrid()
+    {
+        AdvancedTableGrid.Columns.Clear();
+        var preview = _viewModel.SelectedTablePreview;
+        if (preview is null) return;
+
+        for (var index = 0; index < preview.ColumnNames.Count; index++)
+        {
+            var cellPath = $"Cells[{index}]";
+            var editorStyle = new Style(
+                typeof(TextBox),
+                (Style)Application.Current.Resources[typeof(TextBox)]);
+            editorStyle.Setters.Add(new Setter(TextBox.PaddingProperty, new Thickness(6, 2, 6, 2)));
+            editorStyle.Setters.Add(new Setter(TextBox.IsEnabledProperty, new Binding($"{cellPath}.IsEditable")));
+            editorStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty, new Binding($"{cellPath}.ValidationError")));
+            AdvancedTableGrid.Columns.Add(new DataGridTextColumn
+            {
+                Header = preview.ColumnNames[index],
+                Width = new DataGridLength(160),
+                IsReadOnly = !preview.CanEditRows,
+                Binding = new Binding($"{cellPath}.DraftValue")
+                {
+                    Mode = BindingMode.TwoWay,
+                    UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+                },
+                EditingElementStyle = editorStyle
+            });
+        }
+
+        var buttonFactory = new FrameworkElementFactory(typeof(Button));
+        buttonFactory.SetValue(Button.ContentProperty, "Undo");
+        buttonFactory.SetValue(Button.PaddingProperty, new Thickness(7, 3, 7, 3));
+        buttonFactory.SetValue(Button.MinWidthProperty, 0d);
+        buttonFactory.AddHandler(Button.ClickEvent, new RoutedEventHandler(OnUndoAdvancedRow));
+        var buttonStyle = new Style(
+            typeof(Button),
+            (Style)Application.Current.Resources[typeof(Button)]);
+        buttonStyle.Setters.Add(new Setter(VisibilityProperty, Visibility.Collapsed));
+        buttonStyle.Triggers.Add(new DataTrigger
+        {
+            Binding = new Binding("IsStaged"),
+            Value = true,
+            Setters = { new Setter(VisibilityProperty, Visibility.Visible) }
+        });
+        buttonFactory.SetValue(Button.StyleProperty, buttonStyle);
+        AdvancedTableGrid.Columns.Add(new DataGridTemplateColumn
+        {
+            Header = string.Empty,
+            Width = 72,
+            IsReadOnly = true,
+            CellTemplate = new DataTemplate { VisualTree = buttonFactory }
+        });
+    }
+
+    private void OnUndoAdvancedRow(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: AdvancedTableRow row }) _viewModel.UndoAdvancedRow(row);
     }
 
     private async void OnForgetRememberedDatabase(object sender, RoutedEventArgs e)
@@ -105,7 +166,7 @@ public partial class MainWindow : Window
 
     private async void OnApplyDatabaseChanges(object sender, RoutedEventArgs e)
     {
-        var count = _viewModel.PendingChanges.Count;
+        var count = _viewModel.ChangeReviewRows.Count;
         if (count == 0) return;
         var answer = MessageBox.Show(
             $"Apply {count:N0} staged database change(s)?\n\n" +
