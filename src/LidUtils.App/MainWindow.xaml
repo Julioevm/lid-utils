@@ -91,7 +91,8 @@
                                 </Grid>
                             </Grid>
                         </TabItem>
-                        <TabItem Header="Staged changes">
+                        <TabItem>
+                            <TabItem.Header><TextBlock Text="Staged changes"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/><Style.Triggers><DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type TabItem}}}" Value="True"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></DataTrigger><DataTrigger Binding="{Binding HasPendingChanges}" Value="True"><Setter Property="Foreground" Value="#FFB55A"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></TabItem.Header>
                             <Grid Margin="12">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                                 <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Review database changes" FontSize="17" FontWeight="SemiBold"/><TextBlock Text="Applying creates and verifies a full database backup before one atomic transaction." Foreground="#AEB7C6" Margin="0,4,0,0"/></StackPanel><Button Grid.Column="1" Content="Reset all" IsEnabled="{Binding HasPendingChanges}" Click="OnResetAllChanges" VerticalAlignment="Center"/><Button Grid.Column="2" Content="Apply database changes…" IsEnabled="{Binding CanApplyDatabaseChanges}" Click="OnApplyDatabaseChanges" VerticalAlignment="Center" Margin="8,0,0,0" Padding="14,7"/></Grid>
