@@ -15,41 +15,74 @@
         <TabControl Grid.Row="2" Background="#171B22" BorderBrush="#343C49">
             <TabItem Header="Save editor">
                 <Grid Margin="14" DataContext="{Binding SaveEditor}">
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*" MinHeight="120"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox Text="{Binding SavePath, Mode=OneWay}" IsReadOnly="True" Padding="10,7" Background="#1B2029" Foreground="#E8ECF3" BorderBrush="#343C49"/><Button Grid.Column="1" Content="Browse…" Margin="10,0,0,0" IsEnabled="{Binding CanInteract}" Click="OnBrowseSave"/><Button Grid.Column="2" Content="Reload" Margin="8,0,0,0" IsEnabled="{Binding CanInteract}" Click="OnReloadSave"/><Button Grid.Column="3" Content="Export JSON…" Margin="8,0,0,0" IsEnabled="{Binding CanExportJson}" Click="OnExportSaveJson"/><Button Grid.Column="4" Content="ⓘ" FontSize="12" Width="34" Height="34" MinWidth="0" Padding="0" Margin="8,0,0,0" ToolTip="Save file details" IsEnabled="{Binding HasSnapshot}" Click="OnShowSaveInfo"/></Grid>
-                    <Border Grid.Row="2" Padding="12" CornerRadius="5" Background="#1B2029" BorderBrush="#343C49" BorderThickness="1"><StackPanel><TextBlock Text="{Binding StatusTitle}" FontSize="16" FontWeight="SemiBold"/><TextBlock Text="{Binding StatusDetails}" Foreground="#C5CCD7" Margin="0,4,0,0" TextWrapping="Wrap"/></StackPanel></Border>
-                    <Grid Grid.Row="4">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                        <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Padding="10,7" ToolTip="Search JSON path or value"/>
-                        <CheckBox Grid.Column="1" Content="Favorites only" IsChecked="{Binding IsFavoritesOnly}" VerticalAlignment="Center" Margin="12,0,0,0"/>
-                        <Button Grid.Column="2" Content="Clear filter" IsEnabled="{Binding HasSearchText}" Click="OnClearSaveSearch" Margin="8,0,0,0"/>
-                        <TextBlock Grid.Column="3" Text="{Binding ValuesSummary}" Foreground="#AEB7C6" VerticalAlignment="Center" Margin="12,0,0,0"/>
-                    </Grid>
-                    <DataGrid Grid.Row="6" ItemsSource="{Binding DisplayedValues}" IsReadOnly="False" IsEnabled="{Binding CanInteract}" AutoGenerateColumns="False" CanUserAddRows="False" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
-                        <DataGrid.RowStyle>
-                            <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
-                                <Style.Triggers><DataTrigger Binding="{Binding IsStaged}" Value="True"><Setter Property="Background" Value="#6B5715"/></DataTrigger></Style.Triggers>
-                            </Style>
-                        </DataGrid.RowStyle>
-                        <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="★" Width="42" IsReadOnly="True">
-                                <DataGridTemplateColumn.CellTemplate><DataTemplate><Button Click="OnToggleSaveFavorite" ToolTip="Toggle favorite"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Content" Value="☆"/><Setter Property="Width" Value="28"/><Setter Property="MinWidth" Value="0"/><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0"/><Style.Triggers><DataTrigger Binding="{Binding IsFavorite}" Value="True"><Setter Property="Content" Value="★"/></DataTrigger></Style.Triggers></Style></Button.Style></Button></DataTemplate></DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="JSON path" Width="*" IsReadOnly="True" SortMemberPath="DisplayPath"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding DisplayPath}" ToolTip="{Binding DetailsToolTip}" TextTrimming="CharacterEllipsis"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Current value" Binding="{Binding CurrentValue}" Width="220" IsReadOnly="True" SortMemberPath="CurrentValue"/>
-                            <DataGridTemplateColumn Header="New value" Width="260">
-                                <DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel><TextBox Text="{Binding DraftValue, UpdateSourceTrigger=PropertyChanged}" Padding="6,2"/><TextBlock Text="{Binding ValidationError}" Foreground="#FF7770" TextWrapping="Wrap" Margin="0,3,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding ValidationError}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="" Width="72" IsReadOnly="True">
-                                <DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="Undo" Click="OnUndoSaveChange"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="MinWidth" Value="0"/><Setter Property="Padding" Value="7,3"/><Setter Property="Margin" Value="0"/><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsStaged}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Button.Style></Button></DataTemplate></DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                    <Grid Grid.Row="7" Margin="0,8,0,0">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <TabControl Grid.Row="2" Background="#171B22" BorderBrush="#343C49">
+                        <TabItem Header="Currency">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <Grid Margin="12" MaxWidth="860" HorizontalAlignment="Left">
+                                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                    <StackPanel><TextBlock Text="Currency" FontSize="17" FontWeight="SemiBold"/><TextBlock Text="Edit the currencies stored in this save. Changes are staged below and written only after Apply save changes is confirmed." Foreground="#AEB7C6" Margin="0,4,0,0" TextWrapping="Wrap"/></StackPanel>
+                                    <StackPanel Grid.Row="1">
+                                        <TextBlock Text="Load a save to edit its currencies." Foreground="#AEB7C6" Margin="0,4,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding HasSnapshot}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+                                        <ItemsControl ItemsSource="{Binding Currencies}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Margin="0,10,0,0" Padding="14,10" CornerRadius="5" Background="#1B2029" BorderBrush="#343C49" BorderThickness="1">
+                                                        <Border.Style><Style TargetType="Border"><Style.Triggers><DataTrigger Binding="{Binding IsStaged}" Value="True"><Setter Property="Background" Value="#6B5715"/></DataTrigger></Style.Triggers></Style></Border.Style>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                            <StackPanel VerticalAlignment="Center"><TextBlock Text="{Binding Label}" FontWeight="SemiBold"/><TextBlock Text="{Binding Description}" Foreground="#AEB7C6" FontSize="11" TextWrapping="Wrap" MaxWidth="380" HorizontalAlignment="Left" Margin="0,3,12,0" ToolTip="{Binding DetailsToolTip}"/></StackPanel>
+                                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0"><TextBlock Text="Current" Foreground="#7E8999" FontSize="11" HorizontalAlignment="Right"/><TextBlock Text="{Binding CurrentValue}" HorizontalAlignment="Right"/></StackPanel>
+                                                            <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="14,0,0,0"><TextBlock Text="New value" Foreground="#7E8999" FontSize="11" HorizontalAlignment="Right"/><TextBox Width="170" Margin="0,3,0,0" Padding="7,4" Text="{Binding DraftValue, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding DetailsToolTip}" IsEnabled="{Binding DataContext.CanInteract, RelativeSource={RelativeSource AncestorType={x:Type TabControl}}}"/><TextBlock Text="{Binding ValidationError}" Foreground="#FF7770" FontSize="11" TextWrapping="Wrap" MaxWidth="170" HorizontalAlignment="Right" Margin="0,3,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding ValidationError}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></StackPanel>
+                                                            <Button Grid.Column="3" Content="Undo" Click="OnUndoSaveCurrency" VerticalAlignment="Center" Margin="10,0,0,0"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="MinWidth" Value="0"/><Setter Property="Padding" Value="7,3"/><Setter Property="Margin" Value="0"/><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsStaged}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Button.Style></Button>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Grid>
+                            </ScrollViewer>
+                        </TabItem>
+                        <TabItem Header="All values">
+                            <Grid Margin="12">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Padding="10,7" ToolTip="Search JSON path or value"/>
+                                    <CheckBox Grid.Column="1" Content="Favorites only" IsChecked="{Binding IsFavoritesOnly}" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                                    <ToggleButton Grid.Column="2" Content="Show staged changes" IsChecked="{Binding IsShowingStagedChanges}" IsEnabled="{Binding CanShowStagedChanges}" Margin="12,0,0,0" Padding="10,7"/>
+                                    <Button Grid.Column="3" Content="Clear filter" IsEnabled="{Binding HasSearchText}" Click="OnClearSaveSearch" Margin="8,0,0,0"/>
+                                    <TextBlock Grid.Column="4" Text="{Binding ValuesSummary}" Foreground="#AEB7C6" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                                </Grid>
+                                <DataGrid Grid.Row="2" ItemsSource="{Binding DisplayedValues}" IsReadOnly="False" IsEnabled="{Binding CanInteract}" AutoGenerateColumns="False" CanUserAddRows="False" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                                    <DataGrid.RowStyle>
+                                        <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                                            <Style.Triggers><DataTrigger Binding="{Binding IsStaged}" Value="True"><Setter Property="Background" Value="#6B5715"/></DataTrigger></Style.Triggers>
+                                        </Style>
+                                    </DataGrid.RowStyle>
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="★" Width="42" IsReadOnly="True">
+                                            <DataGridTemplateColumn.CellTemplate><DataTemplate><Button Click="OnToggleSaveFavorite" ToolTip="Toggle favorite"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Content" Value="☆"/><Setter Property="Width" Value="28"/><Setter Property="MinWidth" Value="0"/><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0"/><Style.Triggers><DataTrigger Binding="{Binding IsFavorite}" Value="True"><Setter Property="Content" Value="★"/></DataTrigger></Style.Triggers></Style></Button.Style></Button></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="JSON path" Width="*" IsReadOnly="True" SortMemberPath="DisplayPath"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding DisplayPath}" ToolTip="{Binding DetailsToolTip}" TextTrimming="CharacterEllipsis"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="Current value" Binding="{Binding CurrentValue}" Width="220" IsReadOnly="True" SortMemberPath="CurrentValue"/>
+                                        <DataGridTemplateColumn Header="New value" Width="260">
+                                            <DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel><TextBox Text="{Binding DraftValue, UpdateSourceTrigger=PropertyChanged}" Padding="6,2"/><TextBlock Text="{Binding ValidationError}" Foreground="#FF7770" TextWrapping="Wrap" Margin="0,3,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding ValidationError}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="" Width="72" IsReadOnly="True">
+                                            <DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="Undo" Click="OnUndoSaveChange"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="MinWidth" Value="0"/><Setter Property="Padding" Value="7,3"/><Setter Property="Margin" Value="0"/><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsStaged}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Button.Style></Button></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </TabItem>
+                    </TabControl>
+                    <Grid Grid.Row="3" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                         <StackPanel><TextBlock Text="Backup-first write · source fingerprint re-check · atomic replacement · post-write verification" Foreground="#75D695"/><TextBlock Text="{Binding PendingChanges.Count, StringFormat={}{0:N0} staged change(s)}" Foreground="#AEB7C6" Margin="0,3,0,0"/></StackPanel>
-                        <ToggleButton Grid.Column="1" Content="Show staged changes" IsChecked="{Binding IsShowingStagedChanges}" IsEnabled="{Binding CanShowStagedChanges}" Margin="8,0,0,0" Padding="12,7"/>
-                        <Button Grid.Column="2" Content="Apply save changes…" IsEnabled="{Binding CanApply}" Click="OnApplySaveChanges" Margin="8,0,0,0" Padding="14,7"/>
+                        <Button Grid.Column="1" Content="Apply save changes…" IsEnabled="{Binding CanApply}" Click="OnApplySaveChanges" Margin="8,0,0,0" Padding="14,7"/>
                     </Grid>
                 </Grid>
             </TabItem>

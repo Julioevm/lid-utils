@@ -193,6 +193,8 @@ public partial class MainWindow : Window
     private void OnShowSaveInfo(object sender, RoutedEventArgs e)
     {
         MessageBox.Show(
+            $"{_viewModel.SaveEditor.StatusTitle}{Environment.NewLine}{Environment.NewLine}" +
+            $"{_viewModel.SaveEditor.StatusDetails}{Environment.NewLine}{Environment.NewLine}" +
             _viewModel.SaveEditor.Metadata,
             "Save file details",
             MessageBoxButton.OK,
@@ -207,6 +209,11 @@ public partial class MainWindow : Window
     private void OnUndoSaveChange(object sender, RoutedEventArgs e)
     {
         if (sender is Button { DataContext: SaveValueRow row }) _viewModel.SaveEditor.UndoChange(row);
+    }
+
+    private void OnUndoSaveCurrency(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: SaveCurrencyRow row }) _viewModel.SaveEditor.UndoCurrency(row);
     }
 
     private void OnToggleSaveFavorite(object sender, RoutedEventArgs e)

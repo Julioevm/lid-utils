@@ -9,12 +9,23 @@ namespace LidUtils.App;
 
 public sealed class SaveEditorViewModel : INotifyPropertyChanged
 {
+    private static readonly SaveCurrencyDefinition[] CurrencyDefinitions =
+    [
+        new("Death Metals", "Premium currency for the Tengoku vending machine. Editing sets the free balance and zeroes the paid balance.", "/user/free_medal", "/user/paid_medal"),
+        new("Kill Coins", "Main shop currency. Editing sets the free balance and zeroes the paid balance.", "/soul/free_money", "/soul/paid_money"),
+        new("SPLithium", "Energy currency stored in the SPL tank and spent on waiting room facility upgrades.", "/soul/spirit", null),
+        new("Bloodnium", "Currency earned from defeated Haters; used for special exchanges.", "/soul/bloodnium_point", null),
+        new("RE Points", "Recycle points earned by recycling equipment; used for special exchanges.", "/soul/recycle_point", null)
+    ];
+
     private readonly ISaveFileService _saveFileService;
     private readonly SaveValueCatalog _catalog;
     private readonly SaveChangeStagingService _staging = new();
     private readonly HashSet<string> _favoritePointers = new(StringComparer.Ordinal);
     private IReadOnlyList<SaveValueRow> _allValues = [];
     private IReadOnlyList<SaveValueRow> _displayedValues = [];
+    private IReadOnlyList<SaveCurrencyRow> _currencies = [];
+    private Dictionary<string, SaveValueRow> _rowsByPointer = new(StringComparer.Ordinal);
     private SaveFileSnapshot? _snapshot;
     private string _savePath = "No save selected";
     private string _statusTitle = "Ready to inspect saves";
@@ -39,6 +50,12 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     {
         get => _displayedValues;
         private set => SetField(ref _displayedValues, value);
+    }
+
+    public IReadOnlyList<SaveCurrencyRow> Currencies
+    {
+        get => _currencies;
+        private set => SetField(ref _currencies, value);
     }
 
     public ObservableCollection<StagedSaveChange> PendingChanges { get; } = [];
@@ -164,6 +181,73 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         RefreshPendingChanges();
     }
 
+    public void UndoCurrency(SaveCurrencyRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        ResetCurrencyPointers(row);
+        SyncCurrencyPointers(row);
+        RefreshPendingChanges();
+    }
+
+    private void StageCurrencyDraft(SaveCurrencyRow row, string? value)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        var trimmed = (value ?? string.Empty).Trim();
+        if (!long.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount) || amount < 0)
+        {
+            row.ValidationError = "Enter a whole number that is 0 or more.";
+            ResetCurrencyPointers(row);
+            SyncCurrencyPointers(row);
+            RefreshPendingChanges();
+            return;
+        }
+
+        row.ValidationError = string.Empty;
+        if (amount == row.OriginalAmount)
+        {
+            ResetCurrencyPointers(row);
+        }
+        else
+        {
+            _staging.Stage(row.MainEntry, amount.ToString(CultureInfo.InvariantCulture));
+            if (row.PaidEntry is not null) _staging.Stage(row.PaidEntry, "0");
+        }
+
+        SyncCurrencyPointers(row);
+        RefreshPendingChanges();
+    }
+
+    private void ResetCurrencyPointers(SaveCurrencyRow row)
+    {
+        _staging.Reset(row.MainEntry.Pointer);
+        if (row.PaidEntry is not null) _staging.Reset(row.PaidEntry.Pointer);
+    }
+
+    private void SyncCurrencyPointers(SaveCurrencyRow row)
+    {
+        row.SyncFromStaging(_staging);
+        SyncValueRowFromStaging(row.MainEntry.Pointer);
+        if (row.PaidEntry is not null) SyncValueRowFromStaging(row.PaidEntry.Pointer);
+    }
+
+    private void SyncValueRowFromStaging(string pointer)
+    {
+        if (!_rowsByPointer.TryGetValue(pointer, out var row)) return;
+        var change = _staging.Get(pointer);
+        if (change is not null)
+        {
+            row.SetDraftWithoutStaging(change.ProposedValue);
+            row.IsStaged = true;
+            row.ValidationError = string.Empty;
+        }
+        else
+        {
+            row.SetDraftWithoutStaging(row.CurrentValue);
+            row.IsStaged = false;
+            row.ValidationError = string.Empty;
+        }
+    }
+
     public void ToggleFavorite(SaveValueRow row)
     {
         ArgumentNullException.ThrowIfNull(row);
@@ -210,6 +294,8 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         var catalogResult = _catalog.Apply(snapshot.Entries);
         _allValues = catalogResult.Entries.OrderBy(value => value.DisplayPath, StringComparer.Ordinal)
             .Select(value => new SaveValueRow(value, _favoritePointers.Contains(value.Pointer), StageDraft)).ToArray();
+        _rowsByPointer = _allValues.ToDictionary(row => row.Entry.Pointer, StringComparer.Ordinal);
+        Currencies = BuildCurrencyRows(snapshot.Entries);
         SearchText = string.Empty;
         ApplyFilter();
         PendingChanges.Clear();
@@ -231,6 +317,8 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         SavePath = path;
         _allValues = [];
         DisplayedValues = [];
+        _rowsByPointer = new(StringComparer.Ordinal);
+        Currencies = [];
         _staging.ResetAll();
         PendingChanges.Clear();
         IsShowingStagedChanges = false;
@@ -247,11 +335,30 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     {
         PendingChanges.Clear();
         foreach (var change in _staging.PendingChanges) PendingChanges.Add(change);
+        foreach (var currency in Currencies) currency.SyncFromStaging(_staging);
         if (!HasPendingChanges && IsShowingStagedChanges) IsShowingStagedChanges = false;
         ApplyFilter();
         OnPropertyChanged(nameof(HasPendingChanges));
         OnPropertyChanged(nameof(CanApply));
         OnPropertyChanged(nameof(CanShowStagedChanges));
+    }
+
+    private IReadOnlyList<SaveCurrencyRow> BuildCurrencyRows(IReadOnlyList<SaveValueEntry> entries)
+    {
+        var byPointer = new Dictionary<string, SaveValueEntry>(StringComparer.Ordinal);
+        foreach (var entry in entries) byPointer[entry.Pointer] = entry;
+        var rows = new List<SaveCurrencyRow>();
+        foreach (var definition in CurrencyDefinitions)
+        {
+            if (!byPointer.TryGetValue(definition.MainPointer, out var main) || main.Type != SaveValueType.Number) continue;
+            SaveValueEntry? paid = null;
+            if (definition.PaidPointer is not null &&
+                byPointer.TryGetValue(definition.PaidPointer, out var paidEntry) &&
+                paidEntry.Type == SaveValueType.Number) paid = paidEntry;
+            rows.Add(new SaveCurrencyRow(definition, main, paid, StageCurrencyDraft));
+        }
+
+        return rows;
     }
 
     private void ApplyFilter()
@@ -346,6 +453,89 @@ public sealed class SaveValueRow : INotifyPropertyChanged
     public bool IsStaged { get => _isStaged; set => SetField(ref _isStaged, value); }
 
     public void SetDraftWithoutStaging(string value) => SetField(ref _draftValue, value);
+
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        return true;
+    }
+}
+
+public sealed record SaveCurrencyDefinition(
+    string Label,
+    string Description,
+    string MainPointer,
+    string? PaidPointer);
+
+public sealed class SaveCurrencyRow : INotifyPropertyChanged
+{
+    private readonly SaveValueEntry _main;
+    private readonly SaveValueEntry? _paid;
+    private readonly Action<SaveCurrencyRow, string?> _draftChanged;
+    private string _draftValue;
+    private string _validationError = string.Empty;
+    private bool _isStaged;
+
+    public SaveCurrencyRow(
+        SaveCurrencyDefinition definition,
+        SaveValueEntry main,
+        SaveValueEntry? paid,
+        Action<SaveCurrencyRow, string?> draftChanged)
+    {
+        Definition = definition;
+        _main = main;
+        _paid = paid;
+        _draftChanged = draftChanged;
+        _draftValue = CurrentValue;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    public SaveCurrencyDefinition Definition { get; }
+    public SaveValueEntry MainEntry => _main;
+    public SaveValueEntry? PaidEntry => _paid;
+    public string Label => Definition.Label;
+    public string Description => Definition.Description;
+    public long OriginalAmount => ParseAmount(_main.Value) + (_paid is null ? 0 : ParseAmount(_paid.Value));
+    public string CurrentValue => OriginalAmount.ToString("N0", CultureInfo.CurrentCulture);
+    public string DetailsToolTip => string.Join(Environment.NewLine,
+        $"JSON path: {_main.Pointer}",
+        Definition.Description,
+        "Type: Number");
+    public string DraftValue
+    {
+        get => _draftValue;
+        set
+        {
+            if (!SetField(ref _draftValue, value)) return;
+            _draftChanged(this, value);
+        }
+    }
+    public string ValidationError { get => _validationError; set => SetField(ref _validationError, value); }
+    public bool IsStaged { get => _isStaged; set => SetField(ref _isStaged, value); }
+
+    public void SyncFromStaging(SaveChangeStagingService staging)
+    {
+        var change = staging.Get(_main.Pointer);
+        if (change is not null)
+        {
+            IsStaged = true;
+            ValidationError = string.Empty;
+            SetDraftWithoutStaging(change.ProposedValue);
+        }
+        else if (_isStaged)
+        {
+            IsStaged = false;
+            ValidationError = string.Empty;
+            SetDraftWithoutStaging(CurrentValue);
+        }
+    }
+
+    public void SetDraftWithoutStaging(string value) => SetField(ref _draftValue, value);
+
+    private static long ParseAmount(string value) =>
+        long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount) ? amount : 0;
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {

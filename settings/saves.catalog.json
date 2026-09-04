@@ -1,5 +1,55 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "2026.09.1",
-  "values": []
+  "catalogVersion": "2026.09.2",
+  "values": [
+    {
+      "pointer": "/user/free_medal",
+      "label": "Death Metals (free)",
+      "description": "Free Death Metals, the premium currency for the Tengoku vending machine.",
+      "category": "Currency",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/user/paid_medal",
+      "label": "Death Metals (paid)",
+      "description": "Paid Death Metals purchased with real money. The editor never increases this value.",
+      "category": "Currency",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/free_money",
+      "label": "Kill Coins (free)",
+      "description": "Free Kill Coins, the main shop currency.",
+      "category": "Currency",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/paid_money",
+      "label": "Kill Coins (paid)",
+      "description": "Paid Kill Coins purchased with real money. The editor never increases this value.",
+      "category": "Currency",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/spirit",
+      "label": "SPLithium",
+      "description": "Energy currency stored in the SPL tank and spent on waiting room facility upgrades.",
+      "category": "Currency",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/bloodnium_point",
+      "label": "Bloodnium",
+      "description": "Currency earned from defeated Haters; used for special exchanges.",
+      "category": "Currency",
+      "valueType": "number"
+    },
+    {
+      "pointer": "/soul/recycle_point",
+      "label": "RE Points",
+      "description": "Recycle points earned by recycling equipment; used for special exchanges.",
+      "category": "Currency",
+      "valueType": "number"
+    }
+  ]
 }
