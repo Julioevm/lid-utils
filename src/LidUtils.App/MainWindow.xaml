@@ -32,6 +32,42 @@
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox Text="{Binding SavePath, Mode=OneWay}" IsReadOnly="True" Padding="10,7" Background="#1B2029" Foreground="#E8ECF3" BorderBrush="#343C49"/><Button Grid.Column="1" Content="Browse…" Margin="10,0,0,0" IsEnabled="{Binding CanInteract}" Click="OnBrowseSave"/><Button Grid.Column="2" Content="Reload" Margin="8,0,0,0" IsEnabled="{Binding CanInteract}" Click="OnReloadSave"/><Button Grid.Column="3" Content="Export JSON…" Margin="8,0,0,0" IsEnabled="{Binding CanExportJson}" Click="OnExportSaveJson"/><Button Grid.Column="4" Content="ⓘ" FontSize="12" Width="34" Height="34" MinWidth="0" Padding="0" Margin="8,0,0,0" ToolTip="Save file details" IsEnabled="{Binding HasSnapshot}" Click="OnShowSaveInfo"/></Grid>
                     <TabControl Grid.Row="2" Background="#171B22" BorderBrush="#343C49">
+                        <TabItem Header="Overview">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="20" MaxWidth="980" HorizontalAlignment="Left">
+                                    <TextBlock Text="{Binding Overview.Title}" FontSize="22" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding Overview.Description}" Foreground="#AEB7C6" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                    <ItemsControl ItemsSource="{Binding Overview.Sections}" Margin="0,16,0,0">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Width="290" MinHeight="170" Margin="0,0,12,12" Padding="16" CornerRadius="5" Background="#1B2029" BorderBrush="#343C49" BorderThickness="1">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" Foreground="#FFB55A"/>
+                                                        <ItemsControl ItemsSource="{Binding Values}" Margin="0,8,0,0">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Grid Margin="0,4,0,0">
+                                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                                        <TextBlock Text="{Binding Label}" Foreground="#AEB7C6"/>
+                                                                        <TextBlock Grid.Column="1" Text="{Binding Value}" FontWeight="SemiBold" Margin="12,0,0,0" TextAlignment="Right" TextWrapping="Wrap" MaxWidth="150"/>
+                                                                    </Grid>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Border Margin="0,4,0,0" Padding="12" CornerRadius="5" Background="#161B23" BorderBrush="#2A313D" BorderThickness="1">
+                                        <TextBlock Text="Overview values are read-only and calculated from save data. They are not included in staged changes." Foreground="#7E8999" TextWrapping="Wrap"/>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
                         <TabItem Header="Currency">
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel Margin="12" MaxWidth="860" HorizontalAlignment="Left">

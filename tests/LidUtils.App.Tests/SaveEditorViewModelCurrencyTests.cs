@@ -3,6 +3,37 @@ namespace LidUtils.App.Tests;
 public sealed class SaveEditorViewModelCurrencyTests
 {
     [Fact]
+    public async Task Overview_SummarizesKeySaveValues()
+    {
+        var viewModel = await CreateEditorAsync(
+            StringEntry("/user/nm", "Coop"),
+            StringEntry("/user/region", "eu"),
+            StringEntry("/user/country", "es"),
+            Entry("/soul/rank", "2"),
+            Entry("/soul/free_money", "100"),
+            Entry("/soul/paid_money", "25"),
+            Entry("/soul/openelvflr/0/id", "0"),
+            Entry("/soul/openelvflr/1/id", "1"),
+            StringEntry("/soul/chr/chrs/1/0/state", "USE"),
+            StringEntry("/soul/chr/chrs/1/1/state", "FREE"),
+            StringEntry("/soul/cl/0/eid", "item-a"),
+            StringEntry("/soul/cl/1/eid", ""),
+            Entry("/playlog/base/max_floor", "10"),
+            Entry("/playlog/base/total_play_time", "5400"),
+            Entry("/playlog/kill/total_enemy_cnt", "47"));
+
+        Assert.Equal("Coop", viewModel.Overview.Title);
+        var player = Assert.Single(viewModel.Overview.Sections, section => section.Title == "Player");
+        Assert.Contains(player.Values, value => value.Label == "Region" && value.Value == "EU · ES");
+        var wallet = Assert.Single(viewModel.Overview.Sections, section => section.Title == "Wallet");
+        Assert.Contains(wallet.Values, value => value.Label == "Kill Coins" && value.Value == "125");
+        var roster = Assert.Single(viewModel.Overview.Sections, section => section.Title == "Tower & roster");
+        Assert.Contains(roster.Values, value => value.Label == "Elevators unlocked" && value.Value == "2");
+        Assert.Contains(roster.Values, value => value.Label == "Fighters" && value.Value == "2 total · 1 active");
+        Assert.Contains(roster.Values, value => value.Label == "Locker" && value.Value == "1 / 2 occupied");
+    }
+
+    [Fact]
     public async Task CurrencyDraft_StagesMainAndZeroesPaidBalance()
     {
         var viewModel = await CreateEditorAsync(
@@ -307,6 +338,9 @@ public sealed class SaveEditorViewModelCurrencyTests
 
     private static SaveValueEntry Entry(string pointer, string value) =>
         new(pointer, pointer, SaveValueType.Number, value);
+
+    private static SaveValueEntry StringEntry(string pointer, string value) =>
+        new(pointer, pointer, SaveValueType.String, value);
 
     private sealed class FakeSaveFileService(SaveFileSnapshot snapshot) : ISaveFileService
     {

@@ -44,6 +44,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     private IReadOnlyList<SaveNumericFieldRow> _currencies = [];
     private IReadOnlyList<SaveNumericFieldRow> _waitingRoomFields = [];
     private IReadOnlyList<SaveNumericFieldRow> _accountFields = [];
+    private SaveOverview _overview = SaveOverview.Empty;
     private SaveVipSection? _vip;
     private Dictionary<string, SaveValueRow> _rowsByPointer = new(StringComparer.Ordinal);
     private Dictionary<string, SaveValueEntry> _entriesByPointer = new(StringComparer.Ordinal);
@@ -95,6 +96,12 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     {
         get => _vip;
         private set => SetField(ref _vip, value);
+    }
+
+    public SaveOverview Overview
+    {
+        get => _overview;
+        private set => SetField(ref _overview, value);
     }
 
     public ObservableCollection<StagedSaveChange> PendingChanges { get; } = [];
@@ -425,6 +432,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         WaitingRoomFields = fieldRows.Where(row => row.Definition.Group == SaveNumericFieldGroup.WaitingRoom).ToArray();
         AccountFields = fieldRows.Where(row => row.Definition.Group == SaveNumericFieldGroup.Account).ToArray();
         Vip = BuildVipSection();
+        Overview = BuildOverview();
         SearchText = string.Empty;
         ApplyFilter();
         PendingChanges.Clear();
@@ -452,6 +460,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         WaitingRoomFields = [];
         AccountFields = [];
         Vip = null;
+        Overview = SaveOverview.Empty;
         _staging.ResetAll();
         PendingChanges.Clear();
         IsShowingStagedChanges = false;
@@ -513,6 +522,71 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         return new SaveVipSection(true, isActive, expiryValue);
     }
 
+    private SaveOverview BuildOverview()
+    {
+        string Value(string pointer) => _entriesByPointer.TryGetValue(pointer, out var entry)
+            ? entry.Value
+            : "Not recorded";
+        string Number(long amount) => amount.ToString("N0", CultureInfo.CurrentCulture);
+        string Total(params string[] pointers)
+        {
+            var values = pointers.Select(pointer => _entriesByPointer.TryGetValue(pointer, out var entry) ? entry.Value : null).ToArray();
+            return values.Any(value => value is null) ? "Not recorded" : Number(values.Sum(value => ParseEntryAmount(value!)));
+        }
+        var playerName = Value("/user/nm");
+        var fighterStates = _entriesByPointer
+            .Where(pair => pair.Key.StartsWith("/soul/chr/chrs/1/", StringComparison.Ordinal) && pair.Key.EndsWith("/state", StringComparison.Ordinal))
+            .Select(pair => pair.Value.Value)
+            .ToArray();
+        var lockerSlots = _entriesByPointer
+            .Where(pair => pair.Key.StartsWith("/soul/cl/", StringComparison.Ordinal) && pair.Key.EndsWith("/eid", StringComparison.Ordinal))
+            .Select(pair => pair.Value.Value)
+            .ToArray();
+        var elevatorPointers = _entriesByPointer.Keys.Where(pointer =>
+            pointer.StartsWith("/soul/openelvflr/", StringComparison.Ordinal) && pointer.EndsWith("/id", StringComparison.Ordinal)).ToArray();
+
+        return new SaveOverview(
+            playerName == "Not recorded" || string.IsNullOrWhiteSpace(playerName) ? "Save overview" : playerName,
+            "A read-only summary of the loaded save. Use the other tabs to stage edits.",
+            [
+                new("Player", [
+                    new("Rank", Value("/soul/rank")),
+                    new("Login streak", Value("/user/login_keep")),
+                    new("Region", FormatRegion(Value("/user/region"), Value("/user/country"))),
+                    new("Last saved", _snapshot?.LastWriteTimeUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture) ?? "Not recorded")]),
+                new("Wallet", [
+                    new("Kill Coins", Total("/soul/free_money", "/soul/paid_money")),
+                    new("SPLithium", Total("/soul/spirit")),
+                    new("Death Metals", Total("/user/free_medal", "/user/paid_medal")),
+                    new("Bloodnium", Total("/soul/bloodnium_point")),
+                    new("RE Points", Total("/soul/recycle_point"))]),
+                new("Tower & roster", [
+                    new("Highest floor", Value("/playlog/base/max_floor")),
+                    new("Elevators unlocked", elevatorPointers.Length == 0 ? "Not recorded" : Number(elevatorPointers.Length)),
+                    new("Fighters", fighterStates.Length == 0 ? "Not recorded" : $"{fighterStates.Length:N0} total · {fighterStates.Count(state => state == "USE"):N0} active"),
+                    new("Locker", lockerSlots.Length == 0 ? "Not recorded" : $"{lockerSlots.Count(eid => !string.IsNullOrWhiteSpace(eid)):N0} / {lockerSlots.Length:N0} occupied")]),
+                new("Lifetime", [
+                    new("Play time", _entriesByPointer.TryGetValue("/playlog/base/total_play_time", out var playTime) ? FormatPlayTime(ParseEntryAmount(playTime.Value)) : "Not recorded"),
+                    new("Enemies defeated", Total("/playlog/kill/total_enemy_cnt")),
+                    new("Deaths", Total("/playlog/died/total_died_cnt")),
+                    new("Attacks", Total("/playlog/user/attack_cnt"))])]);
+    }
+
+    private static string FormatRegion(string region, string country)
+    {
+        if (region == "Not recorded" && country == "Not recorded") return "Not recorded";
+        return string.Join(" · ", new[] { region, country }.Where(value => value != "Not recorded" && !string.IsNullOrWhiteSpace(value)).Select(value => value.ToUpperInvariant()));
+    }
+
+    private static string FormatPlayTime(long seconds)
+    {
+        if (seconds <= 0) return seconds == 0 ? "0m" : "Not recorded";
+        var span = TimeSpan.FromSeconds(seconds);
+        return span.TotalHours >= 1
+            ? $"{(int)span.TotalHours:N0}h {span.Minutes:D2}m"
+            : $"{span.Minutes:N0}m";
+    }
+
     private static long ParseEntryAmount(string value) =>
         long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount) ? amount : 0;
 
@@ -568,6 +642,18 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
+
+public sealed record SaveOverview(string Title, string Description, IReadOnlyList<SaveOverviewSection> Sections)
+{
+    public static SaveOverview Empty { get; } = new(
+        "No save loaded",
+        "Select or discover a save to see its overview.",
+        []);
+}
+
+public sealed record SaveOverviewSection(string Title, IReadOnlyList<SaveOverviewValue> Values);
+
+public sealed record SaveOverviewValue(string Label, string Value);
 
 public sealed class SaveValueRow : INotifyPropertyChanged
 {
