@@ -24,3 +24,4 @@ backups/
 *.db.bak
 *.sav
 *.sav.bak
+/data
