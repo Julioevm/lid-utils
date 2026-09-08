@@ -21,11 +21,11 @@ public sealed class SaveFileService : ISaveFileService
         Func<bool>? isGameRunning = null)
     {
         _saveDirectory = saveDirectory ?? DefaultSaveDirectory;
-        _backupRoot = backupRoot ?? Path.Combine(
+        _backupRoot = Path.GetFullPath(backupRoot ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "LidUtils",
             "backups",
-            "saves");
+            "saves"));
         _isGameRunning = isGameRunning ?? LetItDieProcessDetector.IsRunning;
     }
 
@@ -69,12 +69,20 @@ public sealed class SaveFileService : ISaveFileService
         SaveFileSnapshot snapshot,
         IReadOnlyCollection<StagedSaveChange> changes,
         CancellationToken cancellationToken = default)
+        => await ApplyAsync(snapshot, changes, [], cancellationToken);
+
+    public async Task<SaveApplyResult> ApplyAsync(
+        SaveFileSnapshot snapshot,
+        IReadOnlyCollection<StagedSaveChange> changes,
+        IReadOnlyCollection<StorageOperation> storageOperations,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(changes);
-        if (changes.Count == 0)
+        ArgumentNullException.ThrowIfNull(storageOperations);
+        if (changes.Count == 0 && storageOperations.Count == 0)
         {
-            throw new InvalidOperationException("There are no staged save changes to apply.");
+            throw new InvalidOperationException("There are no staged save or storage changes to apply.");
         }
 
         if (_isGameRunning())
@@ -109,7 +117,15 @@ public sealed class SaveFileService : ISaveFileService
                 EncodeProposedValue(change)));
         }
 
-        var editedJson = ApplyReplacements(container.JsonUtf8, replacements);
+        if (storageOperations.Count > 0 && changes.Any(change => IsStorageConflictPointer(change.Pointer)))
+        {
+            throw new InvalidOperationException("Raw scalar edits cannot alter the account-storage graph in the same apply operation.");
+        }
+
+        var scalarEditedJson = ApplyReplacements(container.JsonUtf8, replacements);
+        var editedJson = storageOperations.Count == 0
+            ? scalarEditedJson
+            : Encoding.UTF8.GetBytes(StorageEngine.Apply(Encoding.UTF8.GetString(scalarEditedJson), storageOperations));
         var editedContainer = SaveFileCodec.Encode(container, editedJson);
 
         // Prove the complete candidate can be decoded and contains every proposed value before touching the live save.
@@ -127,17 +143,12 @@ public sealed class SaveFileService : ISaveFileService
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        Directory.CreateDirectory(_backupRoot);
-        var backupPath = CreateBackupPath(snapshot.Path, snapshot.Sha256);
-        File.Copy(snapshot.Path, backupPath, overwrite: false);
-        var backupBytes = await ReadAllBytesSharedAsync(backupPath, cancellationToken);
-        if (!CryptographicOperations.FixedTimeEquals(
-                SHA256.HashData(currentSource),
-                SHA256.HashData(backupBytes)))
-        {
-            File.Delete(backupPath);
-            throw new IOException("The save backup could not be verified. The original was not changed.");
-        }
+        var backup = await CreateVerifiedBackupAsync(
+            snapshot.Path,
+            currentSource,
+            SaveBackupPurpose.Apply,
+            cancellationToken);
+        var backupPath = backup.BackupPath;
 
         if (_isGameRunning())
         {
@@ -197,6 +208,125 @@ public sealed class SaveFileService : ISaveFileService
         return new SaveApplyResult(backupPath, updated);
     }
 
+    public async Task<IReadOnlyList<SaveBackupInfo>> ListBackupsAsync(
+        string sourcePath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!Directory.Exists(_backupRoot)) return [];
+
+        var normalizedSource = Path.GetFullPath(sourcePath);
+        var backups = new List<SaveBackupInfo>();
+        foreach (var metadataPath in Directory.EnumerateFiles(_backupRoot, "*.sav.bak.json", SearchOption.TopDirectoryOnly))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                var json = await File.ReadAllTextAsync(metadataPath, cancellationToken);
+                var backup = JsonSerializer.Deserialize<SaveBackupInfo>(json);
+                if (backup is not null &&
+                    IsPlausibleBackupMetadata(backup) &&
+                    PathsEqual(backup.SourcePath, normalizedSource) &&
+                    IsUnderBackupRoot(backup.BackupPath) &&
+                    File.Exists(backup.BackupPath))
+                {
+                    backups.Add(backup);
+                }
+            }
+            catch (IOException)
+            {
+                // A concurrent backup write is not a restore candidate yet.
+            }
+            catch (JsonException)
+            {
+                // Never offer a backup whose metadata cannot be verified.
+            }
+            catch (ArgumentException)
+            {
+                // Never let malformed local metadata block the backup browser.
+            }
+        }
+
+        return backups.OrderByDescending(backup => backup.CreatedUtc).ToArray();
+    }
+
+    public async Task<SaveRestoreResult> RestoreAsync(
+        string sourcePath,
+        Guid backupId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
+        if (_isGameRunning())
+        {
+            throw new InvalidOperationException("LET IT DIE is running. Close the game before restoring a save backup.");
+        }
+
+        var normalizedSource = Path.GetFullPath(sourcePath);
+        var selected = (await ListBackupsAsync(normalizedSource, cancellationToken))
+            .Where(backup => backup.Id == backupId)
+            .ToArray();
+        if (selected.Length != 1)
+        {
+            throw new InvalidOperationException("The selected save backup is missing or has ambiguous metadata.");
+        }
+
+        var backup = await RequireValidBackupAsync(selected[0], cancellationToken);
+        var backupBytes = await ReadAllBytesSharedAsync(backup.BackupPath, cancellationToken);
+        _ = SaveFileCodec.Decode(backupBytes);
+
+        var currentSource = await ReadAllBytesSharedAsync(normalizedSource, cancellationToken);
+        var safetyBackup = await CreateVerifiedBackupAsync(
+            normalizedSource,
+            currentSource,
+            SaveBackupPurpose.PreRestore,
+            cancellationToken);
+
+        if (_isGameRunning())
+        {
+            throw new InvalidOperationException($"LET IT DIE started while the safety backup was being created. The save was not restored. Backup: {safetyBackup.BackupPath}");
+        }
+
+        var directory = Path.GetDirectoryName(normalizedSource)
+            ?? throw new InvalidOperationException("The save path has no parent directory.");
+        var temporaryPath = Path.Combine(directory, $".{Path.GetFileName(normalizedSource)}.restore.{Guid.NewGuid():N}.tmp");
+        var replaced = false;
+        try
+        {
+            await File.WriteAllBytesAsync(temporaryPath, backupBytes, cancellationToken);
+            var candidate = await ReadAllBytesSharedAsync(temporaryPath, cancellationToken);
+            if (!CryptographicOperations.FixedTimeEquals(SHA256.HashData(backupBytes), SHA256.HashData(candidate)))
+            {
+                throw new IOException("The prepared save restore file did not match the selected backup.");
+            }
+            _ = SaveFileCodec.Decode(candidate);
+
+            File.Replace(temporaryPath, normalizedSource, destinationBackupFileName: null, ignoreMetadataErrors: true);
+            replaced = true;
+
+            var restored = await ReadAllBytesSharedAsync(normalizedSource, cancellationToken);
+            if (!CryptographicOperations.FixedTimeEquals(SHA256.HashData(backupBytes), SHA256.HashData(restored)))
+            {
+                throw new IOException("The restored save did not match the selected backup.");
+            }
+
+            var snapshot = await LoadAsync(normalizedSource, cancellationToken);
+            return new SaveRestoreResult(safetyBackup, snapshot);
+        }
+        catch
+        {
+            if (replaced)
+            {
+                RestoreVerifiedBackup(safetyBackup.BackupPath, normalizedSource);
+            }
+            throw;
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+        }
+    }
+
     private string CreateBackupPath(string sourcePath, string sourceSha256)
     {
         var stem = Path.GetFileNameWithoutExtension(sourcePath);
@@ -209,6 +339,99 @@ public sealed class SaveFileService : ISaveFileService
 
         return Path.Combine(_backupRoot, $"{stem}_{timestamp}_{sourceSha256[..8]}_{Guid.NewGuid():N}.sav.bak");
     }
+
+    private async Task<SaveBackupInfo> CreateVerifiedBackupAsync(
+        string sourcePath,
+        byte[] expectedSource,
+        SaveBackupPurpose purpose,
+        CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(_backupRoot);
+        var sourceSha256 = Convert.ToHexString(SHA256.HashData(expectedSource));
+        var backupPath = CreateBackupPath(sourcePath, sourceSha256);
+        try
+        {
+            File.Copy(sourcePath, backupPath, overwrite: false);
+            var backupBytes = await ReadAllBytesSharedAsync(backupPath, cancellationToken);
+            var backupSha256 = Convert.ToHexString(SHA256.HashData(backupBytes));
+            if (!CryptographicOperations.FixedTimeEquals(SHA256.HashData(expectedSource), SHA256.HashData(backupBytes)))
+            {
+                File.Delete(backupPath);
+                throw new IOException("The save backup could not be verified. The original was not changed.");
+            }
+
+            _ = SaveFileCodec.Decode(backupBytes);
+            var info = new SaveBackupInfo(
+                Guid.NewGuid(),
+                backupPath,
+                Path.GetFullPath(sourcePath),
+                DateTime.UtcNow,
+                purpose,
+                sourceSha256,
+                backupBytes.LongLength,
+                backupSha256);
+            await WriteBackupMetadataAsync(info, cancellationToken);
+            return info;
+        }
+        catch
+        {
+            if (File.Exists(backupPath) && !File.Exists(MetadataPath(backupPath))) File.Delete(backupPath);
+            throw;
+        }
+    }
+
+    private async Task<SaveBackupInfo> RequireValidBackupAsync(SaveBackupInfo backup, CancellationToken cancellationToken)
+    {
+        if (!IsPlausibleBackupMetadata(backup) || !IsUnderBackupRoot(backup.BackupPath) || !File.Exists(backup.BackupPath))
+        {
+            throw new InvalidOperationException("The selected save backup file is missing or invalid.");
+        }
+
+        var bytes = await ReadAllBytesSharedAsync(backup.BackupPath, cancellationToken);
+        var hash = Convert.ToHexString(SHA256.HashData(bytes));
+        if (bytes.LongLength != backup.BackupLength || !string.Equals(hash, backup.BackupSha256, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("The selected save backup no longer matches its verified metadata.");
+        }
+        _ = SaveFileCodec.Decode(bytes);
+        return backup;
+    }
+
+    private static async Task WriteBackupMetadataAsync(SaveBackupInfo backup, CancellationToken cancellationToken)
+    {
+        var metadataPath = MetadataPath(backup.BackupPath);
+        var temporaryPath = metadataPath + $".{Guid.NewGuid():N}.tmp";
+        try
+        {
+            await File.WriteAllTextAsync(temporaryPath, JsonSerializer.Serialize(backup), cancellationToken);
+            File.Move(temporaryPath, metadataPath, overwrite: false);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+        }
+    }
+
+    private bool IsUnderBackupRoot(string path)
+    {
+        var root = _backupRoot.EndsWith(Path.DirectorySeparatorChar)
+            ? _backupRoot
+            : _backupRoot + Path.DirectorySeparatorChar;
+        return Path.GetFullPath(path).StartsWith(root, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool PathsEqual(string left, string right) =>
+        string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsPlausibleBackupMetadata(SaveBackupInfo backup) =>
+        backup.Id != Guid.Empty &&
+        !string.IsNullOrWhiteSpace(backup.BackupPath) &&
+        !string.IsNullOrWhiteSpace(backup.SourcePath) &&
+        backup.BackupLength > 0 &&
+        backup.SourceSha256?.Length == 64 &&
+        backup.BackupSha256?.Length == 64;
+
+    private static string MetadataPath(string backupPath) => backupPath + ".json";
 
     private static SaveFileSnapshot CreateSnapshot(string path, byte[] source)
     {
@@ -223,7 +446,8 @@ public sealed class SaveFileService : ISaveFileService
             container.ChunkCount,
             file.LastWriteTimeUtc,
             Convert.ToHexString(SHA256.HashData(source)),
-            entries);
+            entries,
+            Encoding.UTF8.GetString(container.JsonUtf8));
     }
 
     private static void EnsureFingerprint(SaveFileSnapshot snapshot, byte[] source)
@@ -261,6 +485,34 @@ public sealed class SaveFileService : ISaveFileService
         SaveValueType.Number or SaveValueType.Boolean or SaveValueType.Null => Encoding.UTF8.GetBytes(change.ProposedValue),
         _ => throw new ArgumentOutOfRangeException(nameof(change))
     };
+
+    private static bool IsStorageConflictPointer(string pointer)
+    {
+        if (pointer.Equals("/user/uid", StringComparison.Ordinal) ||
+            pointer.Equals("/soul/uid", StringComparison.Ordinal) ||
+            pointer.Equals("/soul/deathbag", StringComparison.Ordinal) ||
+            pointer.StartsWith("/soul/deathbag/", StringComparison.Ordinal) ||
+            pointer.Equals("/soul/skl/eqskl", StringComparison.Ordinal) ||
+            pointer.StartsWith("/soul/skl/eqskl/", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var lastSegment = pointer[(pointer.LastIndexOf('/') + 1)..];
+        if (lastSegment is "eid" or "eptid" or "rwdemsrid") return true;
+
+        return
+        pointer.Equals("/soul/cl", StringComparison.Ordinal) ||
+        pointer.StartsWith("/soul/cl/", StringComparison.Ordinal) ||
+        pointer.Equals("/part/pts", StringComparison.Ordinal) ||
+        pointer.StartsWith("/part/pts/", StringComparison.Ordinal) ||
+        pointer.Equals("/item/items", StringComparison.Ordinal) ||
+        pointer.StartsWith("/item/items/", StringComparison.Ordinal) ||
+        pointer.Equals("/mushroom/msrs", StringComparison.Ordinal) ||
+        pointer.StartsWith("/mushroom/msrs/", StringComparison.Ordinal) ||
+        pointer.Equals("/beast/bsts", StringComparison.Ordinal) ||
+        pointer.StartsWith("/beast/bsts/", StringComparison.Ordinal);
+    }
 
     private static async Task<byte[]> ReadAllBytesSharedAsync(string path, CancellationToken cancellationToken)
     {
@@ -464,6 +716,7 @@ internal static class JsonScalarScanner
         switch (reader.TokenType)
         {
             case JsonTokenType.StartObject:
+                var propertyNames = new HashSet<string>(StringComparer.Ordinal);
                 while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
                 {
                     if (reader.TokenType != JsonTokenType.PropertyName)
@@ -472,6 +725,10 @@ internal static class JsonScalarScanner
                     }
 
                     var propertyName = reader.GetString() ?? string.Empty;
+                    if (!propertyNames.Add(propertyName))
+                    {
+                        throw new InvalidDataException($"The save JSON contains duplicate property '{propertyName}' and cannot be edited safely.");
+                    }
                     if (!reader.Read())
                     {
                         throw new JsonException("Expected a JSON property value.");

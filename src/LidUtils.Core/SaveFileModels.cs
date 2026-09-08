@@ -32,7 +32,8 @@ public sealed record SaveFileSnapshot(
     int ChunkCount,
     DateTime LastWriteTimeUtc,
     string Sha256,
-    IReadOnlyList<SaveValueEntry> Entries);
+    IReadOnlyList<SaveValueEntry> Entries,
+    string Json = "");
 
 public sealed record StagedSaveChange(
     string Pointer,
@@ -47,6 +48,30 @@ public sealed record StagedSaveChange(
 public sealed record SaveApplyResult(
     string BackupPath,
     SaveFileSnapshot UpdatedSnapshot);
+
+public enum SaveBackupPurpose
+{
+    Apply,
+    PreRestore
+}
+
+/// <summary>
+/// Metadata recorded alongside each verified save backup. The source path and
+/// hashes prevent a backup from being offered for a different save slot.
+/// </summary>
+public sealed record SaveBackupInfo(
+    Guid Id,
+    string BackupPath,
+    string SourcePath,
+    DateTime CreatedUtc,
+    SaveBackupPurpose Purpose,
+    string SourceSha256,
+    long BackupLength,
+    string BackupSha256);
+
+public sealed record SaveRestoreResult(
+    SaveBackupInfo SafetyBackup,
+    SaveFileSnapshot RestoredSnapshot);
 
 public sealed record SaveStageOutcome(
     StagedSaveChange? Change,

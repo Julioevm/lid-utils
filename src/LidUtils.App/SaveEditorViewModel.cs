@@ -37,7 +37,9 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
 
     private readonly ISaveFileService _saveFileService;
     private readonly SaveValueCatalog _catalog;
+    private readonly IItemCatalogService? _itemCatalogService;
     private readonly SaveChangeStagingService _staging = new();
+    private readonly List<StorageOperation> _storageOperations = [];
     private readonly HashSet<string> _favoritePointers = new(StringComparer.Ordinal);
     private IReadOnlyList<SaveValueRow> _allValues = [];
     private IReadOnlyList<SaveValueRow> _displayedValues = [];
@@ -58,11 +60,20 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     private bool _isShowingStagedChanges;
     private bool _isBusy;
     private bool _isApplying;
+    private StorageInventory? _storageInventory;
+    private StorageSlotRow? _selectedStorageSlot;
+    private SaveBackupRow? _selectedSaveBackup;
 
-    public SaveEditorViewModel(ISaveFileService saveFileService, SaveValueCatalog? catalog = null)
+    public SaveEditorViewModel(
+        ISaveFileService saveFileService,
+        SaveValueCatalog? catalog = null,
+        IItemCatalogService? itemCatalogService = null)
     {
         _saveFileService = saveFileService;
         _catalog = catalog ?? SaveValueCatalog.Empty;
+        _itemCatalogService = itemCatalogService;
+        ItemCatalog = new ItemCatalogViewModel(itemCatalogService);
+        ItemCatalog.PropertyChanged += OnItemCatalogPropertyChanged;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -105,10 +116,54 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     }
 
     public ObservableCollection<StagedSaveChange> PendingChanges { get; } = [];
+    public ObservableCollection<StorageSlotRow> StorageSlots { get; } = [];
+    public ObservableCollection<StorageOperationReviewRow> PendingStorageOperations { get; } = [];
+    public ObservableCollection<SaveChangeReviewRow> ChangeReviewRows { get; } = [];
+    public ObservableCollection<SaveBackupRow> SaveBackups { get; } = [];
+    public ItemCatalogViewModel ItemCatalog { get; }
+    public ObservableCollection<ItemCatalogEntry> StorageCatalogItems => ItemCatalog.Items;
+    public IReadOnlyList<string> StorageCatalogCategories => ItemCatalog.Categories;
     public string SavePath { get => _savePath; private set => SetField(ref _savePath, value); }
     public string StatusTitle { get => _statusTitle; private set => SetField(ref _statusTitle, value); }
     public string StatusDetails { get => _statusDetails; private set => SetField(ref _statusDetails, value); }
     public string Metadata { get => _metadata; private set => SetField(ref _metadata, value); }
+    public StorageSlotRow? SelectedStorageSlot
+    {
+        get => _selectedStorageSlot;
+        set
+        {
+            if (!SetField(ref _selectedStorageSlot, value)) return;
+            NotifyStorageCommandStateChanged();
+        }
+    }
+    public ItemCatalogEntry? SelectedCatalogItem { get => ItemCatalog.SelectedItem; set => ItemCatalog.SelectedItem = value; }
+    public string StorageCatalogStatus => ItemCatalog.Status;
+    public string StorageSummary => _storageInventory is null
+        ? "Storage is unavailable for this save."
+        : $"{StorageSlots.Count(slot => slot.IsOccupied):N0} / {StorageSlots.Count:N0} occupied · player {_storageInventory.PlayerUid}";
+    public bool HasStorageInventory => _storageInventory is not null;
+    public bool HasPendingStorageOperations => _storageOperations.Count != 0;
+    public int PendingOperationCount => PendingChanges.Count + PendingStorageOperations.Count;
+    public SaveBackupRow? SelectedSaveBackup
+    {
+        get => _selectedSaveBackup;
+        set
+        {
+            if (!SetField(ref _selectedSaveBackup, value)) return;
+            OnPropertyChanged(nameof(CanRestoreSaveBackup));
+        }
+    }
+    public string StorageCatalogSearch
+    {
+        get => ItemCatalog.SearchText;
+        set => ItemCatalog.SearchText = value;
+    }
+
+    public string SelectedStorageCatalogCategory
+    {
+        get => ItemCatalog.SelectedCategory;
+        set => ItemCatalog.SelectedCategory = value;
+    }
 
     public string SearchText
     {
@@ -141,11 +196,17 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         }
     }
 
-    public bool HasPendingChanges => _staging.HasPendingChanges;
+    public bool HasPendingChanges => _staging.HasPendingChanges || HasPendingStorageOperations;
     public bool CanApply => HasPendingChanges && !IsBusy;
     public bool CanShowStagedChanges => HasPendingChanges && !IsBusy;
     public bool CanExportJson => HasSnapshot && !IsBusy;
     public bool CanInteract => !IsBusy;
+    public bool CanOpenStoragePicker => CanInteract && HasStorageInventory && SelectedStorageSlot is not null && ItemCatalog.HasCatalog;
+    public bool CanSetStorageSlot => CanOpenStoragePicker && ItemCatalog.HasSupportedSelection;
+    public bool CanClearStorageSlot => CanInteract && HasStorageInventory && SelectedStorageSlot is not null;
+    public bool CanExpandStorage => CanInteract && HasStorageInventory;
+    public bool CanUndoStorageOperation => CanInteract && HasPendingStorageOperations;
+    public bool CanRestoreSaveBackup => SelectedSaveBackup is not null && HasSnapshot && !IsBusy;
     public bool IsApplying { get => _isApplying; private set => SetField(ref _isApplying, value); }
     public bool HasSnapshot => _snapshot is not null;
     public bool HasSearchText => !string.IsNullOrWhiteSpace(SearchText);
@@ -165,6 +226,8 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(CanApply));
             OnPropertyChanged(nameof(CanShowStagedChanges));
             OnPropertyChanged(nameof(CanExportJson));
+            OnPropertyChanged(nameof(CanRestoreSaveBackup));
+            NotifyStorageCommandStateChanged();
         }
     }
 
@@ -207,6 +270,24 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         StatusDetails = $"Decoded save JSON written to {destinationPath}. Staged changes were not included.";
     });
     public void ClearSearch() => SearchText = string.Empty;
+
+    public void ResetAllChanges()
+    {
+        if (IsBusy) return;
+        _staging.ResetAll();
+        foreach (var row in _allValues) SyncValueRowFromStaging(row.Entry.Pointer);
+        foreach (var field in Currencies) field.SyncFromStaging(_staging);
+        foreach (var field in WaitingRoomFields) field.SyncFromStaging(_staging);
+        foreach (var field in AccountFields) field.SyncFromStaging(_staging);
+        if (Vip is not null)
+        {
+            SyncVipPointers();
+            Vip.IsStaged = false;
+        }
+        ResetStorageOperations();
+        RefreshPendingChanges();
+        RefreshStorageOperations();
+    }
 
     private void StageDraft(SaveValueRow row, string? value)
     {
@@ -388,19 +469,128 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         ApplyFilter();
     }
 
+    /// <summary>
+    /// Supplies the validated masters.db selected by the main window. The catalog is always
+    /// opened by the injected read-only service; the storage page never guesses a game path.
+    /// </summary>
+    public Task ConfigureStorageCatalogAsync(string? databasePath) => RunBusyAsync(async cancellationToken =>
+    {
+        await ItemCatalog.LoadAsync(databasePath, cancellationToken);
+        if (ItemCatalog.HasCatalog)
+        {
+            ItemCatalog.ShowStatus(ItemCatalog.Status + " Clearing slots and adding capacity remain available.");
+        }
+        else if (!string.IsNullOrWhiteSpace(databasePath) && File.Exists(databasePath))
+        {
+            ItemCatalog.ShowStatus(ItemCatalog.Status + " Clearing slots and adding capacity remain available.");
+        }
+    });
+
+    public void StageAddOrReplaceStorageSlot()
+    {
+        if (IsBusy || SelectedStorageSlot is null || SelectedCatalogItem is null) return;
+        StageAddOrReplaceStorageSlot(SelectedCatalogItem);
+    }
+
+    public void StageAddOrReplaceStorageSlot(ItemCatalogEntry entry)
+    {
+        if (IsBusy || SelectedStorageSlot is null) return;
+        var template = ItemCatalog.Result is null ? null : CreateTemplate(entry);
+        if (template?.Template is null)
+        {
+            ItemCatalog.ShowStatus(template?.Error ?? "The selected item cannot be constructed safely.");
+            return;
+        }
+        StageStorageOperation(new SetStorageSlotOperation(SelectedStorageSlot.Slot, template.Template));
+    }
+
+    private ItemCatalogTemplateResult? CreateTemplate(ItemCatalogEntry entry)
+    {
+        if (_itemCatalogService is null) return null;
+        return _itemCatalogService.CreateTemplate(entry);
+    }
+
+    public void StageClearStorageSlot()
+    {
+        if (IsBusy || SelectedStorageSlot is null) return;
+        StageStorageOperation(new ClearStorageSlotOperation(SelectedStorageSlot.Slot));
+    }
+
+    public void StageStorageExpansion()
+    {
+        if (IsBusy || _storageInventory is null) return;
+        StageStorageOperation(new ExpandStorageOperation());
+    }
+
+    public void UndoLastStorageOperation()
+    {
+        if (IsBusy || _storageOperations.Count == 0) return;
+        _storageOperations.RemoveAt(_storageOperations.Count - 1);
+        if (_storageOperations.Count == 0)
+        {
+            if (_snapshot is not null) LoadStorageInventory(_snapshot, clearOperations: false);
+        }
+        else
+        {
+            TryPreviewStorageOperations(_storageOperations, out _);
+        }
+        RefreshStorageOperations();
+    }
+
+    public void ResetStorageOperations()
+    {
+        if (IsBusy || _storageOperations.Count == 0) return;
+        _storageOperations.Clear();
+        if (_snapshot is not null) LoadStorageInventory(_snapshot, clearOperations: false);
+        RefreshStorageOperations();
+    }
+
+    private void StageStorageOperation(StorageOperation operation)
+    {
+        var candidate = _storageOperations.Append(operation).ToArray();
+        if (!TryPreviewStorageOperations(candidate, out var error))
+        {
+            ItemCatalog.ShowStatus($"Storage operation was not staged: {error}");
+            return;
+        }
+        _storageOperations.Add(operation);
+        RefreshStorageOperations();
+    }
+
     public Task ApplyAsync() => RunBusyAsync(async cancellationToken =>
     {
-        if (_snapshot is null || !_staging.HasPendingChanges) return;
+        if (_snapshot is null || !HasPendingChanges) return;
         IsApplying = true;
         try
         {
             StatusTitle = "Backing up and applying…";
             StatusDetails = "Rechecking the source, creating and verifying a backup, then atomically replacing the save.";
-            var result = await _saveFileService.ApplyAsync(_snapshot, _staging.PendingChanges, cancellationToken);
+            var result = await _saveFileService.ApplyAsync(_snapshot, _staging.PendingChanges, _storageOperations, cancellationToken);
             _staging.ResetAll();
+            _storageOperations.Clear();
             SetSnapshot(result.UpdatedSnapshot);
+            await RefreshSaveBackupsAsync(result.UpdatedSnapshot.Path, cancellationToken);
             StatusTitle = "Save updated safely";
-            StatusDetails = $"Applied the staged changes. Verified backup: {result.BackupPath}";
+            StatusDetails = $"Applied the staged scalar and storage changes. Verified backup: {result.BackupPath}";
+        }
+        finally { IsApplying = false; }
+    });
+
+    public Task RestoreSelectedSaveBackupAsync() => RunBusyAsync(async cancellationToken =>
+    {
+        if (_snapshot is null || SelectedSaveBackup is null) return;
+        IsApplying = true;
+        try
+        {
+            StatusTitle = "Backing up and restoring…";
+            StatusDetails = "Creating and verifying a safety backup of the current save before restoring the selected snapshot.";
+            var result = await _saveFileService.RestoreAsync(_snapshot.Path, SelectedSaveBackup.Id, cancellationToken);
+            _staging.ResetAll();
+            _storageOperations.Clear();
+            SetSnapshot(result.RestoredSnapshot);
+            await RefreshSaveBackupsAsync(result.RestoredSnapshot.Path, cancellationToken);
+            StatusTitle = "Save restored safely";
+            StatusDetails = $"The selected backup was restored. Pre-restore safety backup: {result.SafetyBackup.BackupPath}";
         }
         finally { IsApplying = false; }
     });
@@ -412,6 +602,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         StatusDetails = "Validating the BRG container, decompressing its JSON, and indexing editable values.";
         var snapshot = await _saveFileService.LoadAsync(path, cancellationToken);
         SetSnapshot(snapshot);
+        await RefreshSaveBackupsAsync(snapshot.Path, cancellationToken);
         StatusTitle = "Save ready";
         StatusDetails = $"All {snapshot.Entries.Count:N0} scalar entries are shown below. Type in the filter to narrow the list; nothing is written until Apply is confirmed.";
     }
@@ -433,9 +624,11 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         AccountFields = fieldRows.Where(row => row.Definition.Group == SaveNumericFieldGroup.Account).ToArray();
         Vip = BuildVipSection();
         Overview = BuildOverview();
+        LoadStorageInventory(snapshot);
         SearchText = string.Empty;
         ApplyFilter();
         PendingChanges.Clear();
+        RefreshChangeReviewRows();
         Metadata = string.Join(Environment.NewLine,
             $"BRG version {snapshot.Version} · {snapshot.ChunkCount} zlib chunks · {snapshot.Entries.Count:N0} scalar values",
             $"{FormatBytes(snapshot.FileLength)} compressed · {FormatBytes(snapshot.UncompressedLength)} JSON · modified {snapshot.LastWriteTimeUtc.ToLocalTime():g}",
@@ -443,9 +636,12 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasSnapshot));
         OnPropertyChanged(nameof(ValuesSummary));
         OnPropertyChanged(nameof(HasPendingChanges));
+        OnPropertyChanged(nameof(PendingOperationCount));
         OnPropertyChanged(nameof(CanApply));
         OnPropertyChanged(nameof(CanShowStagedChanges));
         OnPropertyChanged(nameof(CanExportJson));
+        OnPropertyChanged(nameof(CanRestoreSaveBackup));
+        NotifyStorageCommandStateChanged();
     }
 
     private void Clear(string path)
@@ -462,15 +658,29 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         Vip = null;
         Overview = SaveOverview.Empty;
         _staging.ResetAll();
+        _storageOperations.Clear();
+        _storageInventory = null;
+        StorageSlots.Clear();
+        PendingStorageOperations.Clear();
+        ChangeReviewRows.Clear();
+        SaveBackups.Clear();
+        SelectedSaveBackup = null;
+        SelectedStorageSlot = null;
         PendingChanges.Clear();
         IsShowingStagedChanges = false;
         Metadata = "No save loaded.";
         OnPropertyChanged(nameof(HasSnapshot));
         OnPropertyChanged(nameof(ValuesSummary));
         OnPropertyChanged(nameof(HasPendingChanges));
+        OnPropertyChanged(nameof(HasPendingStorageOperations));
+        OnPropertyChanged(nameof(PendingOperationCount));
+        OnPropertyChanged(nameof(HasStorageInventory));
+        OnPropertyChanged(nameof(StorageSummary));
         OnPropertyChanged(nameof(CanApply));
         OnPropertyChanged(nameof(CanShowStagedChanges));
+        RefreshChangeReviewRows();
         OnPropertyChanged(nameof(CanExportJson));
+        OnPropertyChanged(nameof(CanRestoreSaveBackup));
     }
 
     private void RefreshPendingChanges()
@@ -484,8 +694,148 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         if (!HasPendingChanges && IsShowingStagedChanges) IsShowingStagedChanges = false;
         ApplyFilter();
         OnPropertyChanged(nameof(HasPendingChanges));
+        OnPropertyChanged(nameof(PendingOperationCount));
         OnPropertyChanged(nameof(CanApply));
         OnPropertyChanged(nameof(CanShowStagedChanges));
+        RefreshChangeReviewRows();
+    }
+
+    private void LoadStorageInventory(SaveFileSnapshot snapshot, bool clearOperations = true)
+    {
+        if (clearOperations)
+        {
+            _storageOperations.Clear();
+            PendingStorageOperations.Clear();
+        }
+        _storageInventory = null;
+        StorageSlots.Clear();
+        SelectedStorageSlot = null;
+        if (string.IsNullOrWhiteSpace(snapshot.Json))
+        {
+            ItemCatalog.ShowStatus("This save snapshot has no decoded JSON. Load it again with a current save service to inspect storage.");
+            OnPropertyChanged(nameof(HasStorageInventory));
+            OnPropertyChanged(nameof(StorageSummary));
+            return;
+        }
+
+        try
+        {
+            _storageInventory = StorageEngine.Read(snapshot.Json);
+            PopulateStorageSlots(_storageInventory, null);
+            if (ItemCatalog.DatabasePath is null)
+            {
+                ItemCatalog.ShowStatus("Validate masters.db to search item definitions. Clearing slots and adding capacity remain available.");
+            }
+        }
+        catch (Exception exception)
+        {
+            ItemCatalog.ShowStatus($"Storage could not be read safely: {exception.Message}");
+        }
+        finally
+        {
+            OnPropertyChanged(nameof(HasStorageInventory));
+            OnPropertyChanged(nameof(StorageSummary));
+            NotifyStorageCommandStateChanged();
+        }
+    }
+
+    private void RefreshStorageOperations()
+    {
+        PendingStorageOperations.Clear();
+        foreach (var operation in _storageOperations)
+            PendingStorageOperations.Add(StorageOperationReviewRow.From(operation));
+        OnPropertyChanged(nameof(HasPendingStorageOperations));
+        OnPropertyChanged(nameof(HasPendingChanges));
+        OnPropertyChanged(nameof(PendingOperationCount));
+        OnPropertyChanged(nameof(CanApply));
+        NotifyStorageCommandStateChanged();
+        RefreshChangeReviewRows();
+    }
+
+    private void RefreshChangeReviewRows()
+    {
+        ChangeReviewRows.Clear();
+        foreach (var change in _staging.PendingChanges) ChangeReviewRows.Add(SaveChangeReviewRow.From(change));
+        foreach (var operation in PendingStorageOperations) ChangeReviewRows.Add(SaveChangeReviewRow.From(operation));
+    }
+
+    private async Task RefreshSaveBackupsAsync(string sourcePath, CancellationToken cancellationToken)
+    {
+        SaveBackups.Clear();
+        SelectedSaveBackup = null;
+        var backups = await _saveFileService.ListBackupsAsync(sourcePath, cancellationToken);
+        foreach (var backup in backups) SaveBackups.Add(new SaveBackupRow(backup));
+    }
+
+    private bool TryPreviewStorageOperations(IEnumerable<StorageOperation> operations, out string error)
+    {
+        error = string.Empty;
+        if (_snapshot is null || string.IsNullOrWhiteSpace(_snapshot.Json))
+        {
+            error = "The loaded snapshot does not contain decoded JSON.";
+            return false;
+        }
+        try
+        {
+            var previewJson = StorageEngine.Apply(_snapshot.Json, operations.ToArray());
+            _storageInventory = StorageEngine.Read(previewJson);
+            PopulateStorageSlots(_storageInventory, SelectedStorageSlot?.Slot);
+            OnPropertyChanged(nameof(HasStorageInventory));
+            OnPropertyChanged(nameof(StorageSummary));
+            return true;
+        }
+        catch (Exception exception)
+        {
+            error = exception.Message;
+            return false;
+        }
+    }
+
+    private void PopulateStorageSlots(StorageInventory inventory, int? selectedSlot)
+    {
+        StorageSlots.Clear();
+        foreach (var slot in inventory.Slots.OrderBy(slot => slot.Slot))
+        {
+            var expectedCategory = slot.Type switch
+            {
+                0 => ItemCatalogCategory.Equipment,
+                1 => ItemCatalogCategory.Mushroom,
+                2 => ItemCatalogCategory.Beast,
+                3 => ItemCatalogCategory.Item,
+                _ => (ItemCatalogCategory?)null
+            };
+            var definition = slot.DefinitionId is not null && ItemCatalog.Result is not null
+                ? ItemCatalog.Result.Entries.FirstOrDefault(item =>
+                    item.Category == expectedCategory &&
+                    string.Equals(item.DefinitionId, slot.DefinitionId, StringComparison.Ordinal))
+                : null;
+            StorageSlots.Add(new StorageSlotRow(slot, definition?.DisplayName, definition?.CategoryLabel));
+        }
+        SelectedStorageSlot = selectedSlot is null ? null : StorageSlots.FirstOrDefault(slot => slot.Slot == selectedSlot);
+    }
+
+    private void OnItemCatalogPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
+    {
+        if (eventArgs.PropertyName is nameof(ItemCatalogViewModel.Result) or nameof(ItemCatalogViewModel.AllEntries))
+        {
+            // The selected, validated database may arrive after the save. Rebuild names only;
+            // staged operations continue to use their already validated templates.
+            if (_storageInventory is not null) PopulateStorageSlots(_storageInventory, SelectedStorageSlot?.Slot);
+        }
+
+        if (eventArgs.PropertyName is nameof(ItemCatalogViewModel.HasCatalog) or nameof(ItemCatalogViewModel.SelectedItem) or nameof(ItemCatalogViewModel.HasSupportedSelection))
+        {
+            NotifyStorageCommandStateChanged();
+        }
+    }
+
+    private void NotifyStorageCommandStateChanged()
+    {
+        OnPropertyChanged(nameof(CanSetStorageSlot));
+        OnPropertyChanged(nameof(CanOpenStoragePicker));
+        OnPropertyChanged(nameof(CanClearStorageSlot));
+        OnPropertyChanged(nameof(CanExpandStorage));
+        OnPropertyChanged(nameof(CanUndoStorageOperation));
     }
 
     private IReadOnlyList<SaveNumericFieldRow> BuildFieldRows()
@@ -654,6 +1004,43 @@ public sealed record SaveOverview(string Title, string Description, IReadOnlyLis
 public sealed record SaveOverviewSection(string Title, IReadOnlyList<SaveOverviewValue> Values);
 
 public sealed record SaveOverviewValue(string Label, string Value);
+
+public sealed class StorageSlotRow
+{
+    public StorageSlotRow(StorageSlot slot, string? resolvedName = null, string? resolvedCategory = null)
+    {
+        Slot = slot.Slot;
+        Type = slot.Type;
+        EntityId = slot.EntityId;
+        DefinitionId = slot.DefinitionId;
+        Name = resolvedName ?? slot.Name;
+        ResolvedCategory = resolvedCategory;
+    }
+
+    public int Slot { get; }
+    public int Type { get; }
+    public string? EntityId { get; }
+    public string? DefinitionId { get; }
+    public string? Name { get; }
+    public string? ResolvedCategory { get; }
+    public bool IsOccupied => !string.IsNullOrWhiteSpace(EntityId);
+    public string ItemName => IsOccupied ? Name ?? DefinitionId ?? "Unresolved item" : "Empty";
+    public string Category => IsOccupied ? ResolvedCategory ?? $"Type {Type}" : "Empty";
+    public string Details => IsOccupied
+        ? $"Entity: {EntityId}{Environment.NewLine}Definition: {DefinitionId ?? "unknown"}"
+        : "This storage slot is empty.";
+}
+
+public sealed record StorageOperationReviewRow(string Operation, string Details)
+{
+    public static StorageOperationReviewRow From(StorageOperation operation) => operation switch
+    {
+        ExpandStorageOperation expand => new("Expand storage", $"Add {expand.SlotCount:N0} empty storage slots."),
+        ClearStorageSlotOperation clear => new("Clear storage slot", $"Remove the item reference from slot {clear.Slot:N0}."),
+        SetStorageSlotOperation set => new("Add or replace storage slot", $"Slot {set.Slot:N0}: {set.Template.Name} ({set.Template.DefinitionId})."),
+        _ => new("Storage operation", operation.ToString() ?? "Pending storage edit")
+    };
+}
 
 public sealed class SaveValueRow : INotifyPropertyChanged
 {

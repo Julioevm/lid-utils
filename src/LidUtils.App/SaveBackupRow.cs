@@ -3,22 +3,20 @@ using LidUtils.Core;
 
 namespace LidUtils.App;
 
-public sealed class DatabaseBackupRow
+public sealed class SaveBackupRow
 {
-    public DatabaseBackupRow(DatabaseBackupInfo backup, string currentSchemaSha256)
+    public SaveBackupRow(SaveBackupInfo backup)
     {
         Backup = backup;
-        IsEligible = string.Equals(backup.SchemaSha256, currentSchemaSha256, StringComparison.Ordinal);
     }
 
-    public DatabaseBackupInfo Backup { get; }
+    public SaveBackupInfo Backup { get; }
     public Guid Id => Backup.Id;
     public string Created => Backup.CreatedUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
-    public string Purpose => Backup.Purpose == DatabaseBackupPurpose.Apply ? "Before apply" : "Before restore";
+    public string Purpose => Backup.Purpose == SaveBackupPurpose.Apply ? "Before apply" : "Before restore";
     public string Size => FormatSize(Backup.BackupLength);
     public string Fingerprint => Backup.BackupSha256[..Math.Min(12, Backup.BackupSha256.Length)];
-    public bool IsEligible { get; }
-    public string Status => IsEligible ? "Ready to restore" : "Blocked: schema changed";
+    public string Status => "Ready to restore";
 
     private static string FormatSize(long bytes) => bytes < 1024 * 1024
         ? (bytes / 1024d).ToString("N1", CultureInfo.CurrentCulture) + " KB"

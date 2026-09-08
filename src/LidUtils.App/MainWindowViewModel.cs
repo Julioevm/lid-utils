@@ -18,6 +18,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly IReadOnlyDatabaseBrowser _browser;
     private readonly IDatabaseMaintenanceService _databaseMaintenance;
     private readonly SettingsCatalog _catalog;
+    private readonly IItemCatalogService? _itemCatalogService;
     private readonly ChangeStagingService _changeStaging = new();
     private readonly SemaphoreSlim _preferencesSaveLock = new(1, 1);
     private readonly HashSet<SettingId> _favoriteIds = [];
@@ -49,7 +50,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         IReadOnlyDatabaseBrowser browser,
         IDatabaseMaintenanceService databaseMaintenance,
         SettingsCatalog catalog,
-        SaveEditorViewModel saveEditor)
+        SaveEditorViewModel saveEditor,
+        IItemCatalogService? itemCatalogService = null)
     {
         _discoveryService = discoveryService;
         _validator = validator;
@@ -57,7 +59,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _browser = browser;
         _databaseMaintenance = databaseMaintenance;
         _catalog = catalog;
+        _itemCatalogService = itemCatalogService;
         SaveEditor = saveEditor;
+        ItemCatalog = new ItemCatalogViewModel(itemCatalogService);
         SaveEditor.FavoritePointersChanged += SaveFavoriteSavePointers;
         SettingsView = CollectionViewSource.GetDefaultView(Settings);
         SettingsView.Filter = FilterSetting;
@@ -66,6 +70,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public SaveEditorViewModel SaveEditor { get; }
+    public ItemCatalogViewModel ItemCatalog { get; }
     public ObservableCollection<DatabaseSettingRow> Settings { get; } = [];
     public ICollectionView SettingsView { get; }
     public ObservableCollection<string> Categories { get; } = ["All categories"];
@@ -507,7 +512,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         var schemaTask = Task.Run(
             () => _browser.LoadSchemaAsync(path, cancellationToken),
             cancellationToken);
-        await Task.WhenAll(settingsTask, schemaTask);
+        var itemCatalogTask = _itemCatalogService is null
+            ? Task.FromResult<ItemCatalogLoadResult?>(null)
+            : Task.Run<ItemCatalogLoadResult?>(
+                async () => (ItemCatalogLoadResult?)await _itemCatalogService.LoadAsync(path, cancellationToken: cancellationToken),
+                cancellationToken);
+        await Task.WhenAll(settingsTask, schemaTask, itemCatalogTask);
 
         var settings = await settingsTask;
         var catalogResult = _catalog.Apply(settings.Entries);
@@ -528,6 +538,19 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         SetMetadata(result.Metadata);
         _loadedMetadata = result.Metadata;
         SourceDatabaseChanged = false;
+        // The item catalog is read once and shared between the storage picker and the browse tab.
+        // It is opened read-only; it never relies on a hard-coded game path.
+        var itemCatalogResult = await itemCatalogTask;
+        if (itemCatalogResult is not null)
+        {
+            ItemCatalog.SetResult(itemCatalogResult, path);
+            SaveEditor.ItemCatalog.SetResult(itemCatalogResult, path);
+        }
+        else
+        {
+            await ItemCatalog.LoadAsync(path, cancellationToken);
+            await SaveEditor.ConfigureStorageCatalogAsync(result.Metadata.Path);
+        }
         StatusTitle = "Database ready";
         StatusDetails = "Browse settings or stage changes. Nothing is written until Apply is confirmed and a verified backup is ready.";
         await RefreshDatabaseBackupsAsync(path, result.Metadata.SchemaSha256, cancellationToken);
@@ -581,6 +604,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         SettingsSummary = "No settings loaded.";
         SchemaSummary = "No schema loaded.";
         MetadataDetails = "No validated database loaded.";
+        ItemCatalog.Reset();
+        SaveEditor.ItemCatalog.Reset();
         OnPropertyChanged(nameof(HasPendingChanges));
         OnPropertyChanged(nameof(CanApplyDatabaseChanges));
         OnPropertyChanged(nameof(CanRestoreDatabaseBackup));

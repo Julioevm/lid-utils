@@ -29,7 +29,7 @@
         <TabControl Grid.Row="2" Background="#171B22" BorderBrush="#343C49">
             <TabItem Header="Save editor">
                 <Grid Margin="14" DataContext="{Binding SaveEditor}">
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox Text="{Binding SavePath, Mode=OneWay}" IsReadOnly="True" Padding="10,7" Background="#1B2029" Foreground="#E8ECF3" BorderBrush="#343C49"/><Button Grid.Column="1" Content="Browse…" Margin="10,0,0,0" IsEnabled="{Binding CanInteract}" Click="OnBrowseSave"/><Button Grid.Column="2" Content="Reload" Margin="8,0,0,0" IsEnabled="{Binding CanInteract}" Click="OnReloadSave"/><Button Grid.Column="3" Content="Export JSON…" Margin="8,0,0,0" IsEnabled="{Binding CanExportJson}" Click="OnExportSaveJson"/><Button Grid.Column="4" Content="ⓘ" FontSize="12" Width="34" Height="34" MinWidth="0" Padding="0" Margin="8,0,0,0" ToolTip="Save file details" IsEnabled="{Binding HasSnapshot}" Click="OnShowSaveInfo"/></Grid>
                     <TabControl Grid.Row="2" Background="#171B22" BorderBrush="#343C49">
                         <TabItem Header="Overview">
@@ -115,6 +115,33 @@
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
+                        <TabItem Header="Storage">
+                            <Grid Margin="12">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Account storage" FontSize="17" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding StorageSummary}" Foreground="#AEB7C6" Margin="0,4,0,0"/>
+                                    <TextBlock Text="{Binding StorageCatalogStatus}" Foreground="#FFB55A" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <Grid Grid.Row="2">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <Grid>
+                                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                        <TextBlock Text="Storage slots" FontWeight="SemiBold"/>
+                                        <DataGrid Grid.Row="2" ItemsSource="{Binding StorageSlots}" SelectedItem="{Binding SelectedStorageSlot}" IsReadOnly="True" IsEnabled="{Binding CanInteract}" AutoGenerateColumns="False" CanUserAddRows="False" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                                            <DataGrid.Columns><DataGridTextColumn Header="Slot" Binding="{Binding Slot}" Width="70"/><DataGridTextColumn Header="Item" Binding="{Binding ItemName}" Width="*"/><DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="110"/><DataGridTextColumn Header="Definition" Binding="{Binding DefinitionId}" Width="150"/></DataGrid.Columns>
+                                        </DataGrid>
+                                        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8,0,0"><Button Content="Set item…" Click="OnSetStorageEquipment" IsEnabled="{Binding CanOpenStoragePicker}"/><Button Content="Clear selected" Click="OnClearStorageSlot" IsEnabled="{Binding CanClearStorageSlot}" Margin="8,0,0,0"/><Button Content="Add 10 slots" Click="OnExpandStorage" IsEnabled="{Binding CanExpandStorage}" Margin="8,0,0,0"/></StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Column="2">
+                                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                        <TextBlock Text="Item catalog" FontWeight="SemiBold"/>
+                                        <app:ItemCatalogView Grid.Row="2" DataContext="{Binding ItemCatalog}" IsEnabled="{Binding DataContext.CanInteract, RelativeSource={RelativeSource AncestorType={x:Type TabControl}}}"/>
+                                        <Button Grid.Row="3" Content="Use selected item" Click="OnAddOrReplaceStorageSlot" IsEnabled="{Binding CanSetStorageSlot}" Margin="0,8,0,0" HorizontalAlignment="Left"/>
+                                    </Grid>
+                                </Grid>
+                            </Grid>
+                        </TabItem>
                         <TabItem Header="All values">
                             <Grid Margin="12">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
@@ -148,12 +175,24 @@
                                 </DataGrid>
                             </Grid>
                         </TabItem>
+                        <TabItem>
+                            <TabItem.Header><TextBlock Text="Staged changes"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/><Style.Triggers><DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type TabItem}}}" Value="True"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></DataTrigger><DataTrigger Binding="{Binding HasPendingChanges}" Value="True"><Setter Property="Foreground" Value="#FFB55A"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></TabItem.Header>
+                            <Grid Margin="12">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Review save changes" FontSize="17" FontWeight="SemiBold"/><TextBlock Text="Applying creates and verifies a complete save backup before the staged scalar and storage changes are written together." Foreground="#AEB7C6" Margin="0,4,0,0" TextWrapping="Wrap"/></StackPanel><Button Grid.Column="1" Content="Reset all" IsEnabled="{Binding HasPendingChanges}" Click="OnResetAllSaveChanges" VerticalAlignment="Center"/><Button Grid.Column="2" Content="Apply save changes…" IsEnabled="{Binding CanApply}" Click="OnApplySaveChanges" VerticalAlignment="Center" Margin="8,0,0,0" Padding="14,7"/></Grid>
+                                <DataGrid Grid.Row="2" ItemsSource="{Binding ChangeReviewRows}" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"><DataGrid.Columns><DataGridTextColumn Header="Change" Binding="{Binding Change}" Width="150"/><DataGridTextColumn Header="Location" Binding="{Binding Location}" Width="*"/><DataGridTextColumn Header="Original" Binding="{Binding OriginalValue}" Width="220"/><DataGridTextColumn Header="Proposed change" Binding="{Binding ProposedValue}" Width="2*"/></DataGrid.Columns></DataGrid>
+                                <TextBlock Grid.Row="3" Text="LET IT DIE must be closed · verified backup · source fingerprint re-check · atomic replacement · post-write verification" Foreground="#75D695" Margin="0,10,0,0"/>
+                            </Grid>
+                        </TabItem>
+                        <TabItem Header="Backups">
+                            <Grid Margin="12">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <StackPanel><TextBlock Text="Save backups" FontSize="17" FontWeight="SemiBold"/><TextBlock Text="Verified backups for the selected save are shown here. Restoring first creates and verifies a safety backup of the current save." Foreground="#AEB7C6" Margin="0,4,0,0" TextWrapping="Wrap"/></StackPanel>
+                                <DataGrid Grid.Row="2" ItemsSource="{Binding SaveBackups}" SelectedItem="{Binding SelectedSaveBackup}" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False"><DataGrid.Columns><DataGridTextColumn Header="Created" Binding="{Binding Created}" Width="170"/><DataGridTextColumn Header="Purpose" Binding="{Binding Purpose}" Width="150"/><DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="100"/><DataGridTextColumn Header="Fingerprint" Binding="{Binding Fingerprint}" Width="150"/><DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="*"/></DataGrid.Columns></DataGrid>
+                                <Grid Grid.Row="3" Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Restore replaces the current save only after its safety backup is verified." Foreground="#75D695" VerticalAlignment="Center"/><Button Grid.Column="1" Content="Restore selected backup…" IsEnabled="{Binding CanRestoreSaveBackup}" Click="OnRestoreSaveBackup" Padding="14,7"/></Grid>
+                            </Grid>
+                        </TabItem>
                     </TabControl>
-                    <Grid Grid.Row="3" Margin="0,8,0,0">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                        <StackPanel><TextBlock Text="Backup-first write · source fingerprint re-check · atomic replacement · post-write verification" Foreground="#75D695"/><TextBlock Text="{Binding PendingChanges.Count, StringFormat={}{0:N0} staged change(s)}" Foreground="#AEB7C6" Margin="0,3,0,0"/></StackPanel>
-                        <Button Grid.Column="1" Content="Apply save changes…" IsEnabled="{Binding CanApply}" Click="OnApplySaveChanges" Margin="8,0,0,0" Padding="14,7"/>
-                    </Grid>
                 </Grid>
             </TabItem>
             <TabItem Header="Game Database">
@@ -194,6 +233,19 @@
                                 </Grid>
                             </Grid>
                         </TabItem>
+                        <TabItem Header="Item catalog">
+                            <Grid Margin="12">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                                <StackPanel><TextBlock Text="Item catalog" FontSize="17" FontWeight="SemiBold"/><TextBlock Text="Read-only definitions and localized names from masters.db. Use the storage page to create an item from a selected definition." Foreground="#AEB7C6" Margin="0,4,0,0" TextWrapping="Wrap"/></StackPanel>
+                                <app:ItemCatalogView Grid.Row="2" DataContext="{Binding ItemCatalog}" IsEnabled="{Binding DataContext.CanInteract, RelativeSource={RelativeSource AncestorType={x:Type TabControl}}}"/>
+                            </Grid>
+                        </TabItem>
+                        <TabItem Header="Advanced">
+                            <Grid Margin="12"><Grid.ColumnDefinitions><ColumnDefinition Width="260"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <ListBox ItemsSource="{Binding SchemaTables}" SelectedItem="{Binding SelectedSchemaTable}" SelectionChanged="OnSchemaSelectionChanged" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="4"><TextBlock Text="{Binding Name}" FontWeight="SemiBold"/><TextBlock Text="{Binding Summary}" Foreground="#7E8999" FontSize="11"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
+                                <Grid Grid.Column="2"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="150"/><RowDefinition Height="10"/><RowDefinition Height="*"/></Grid.RowDefinitions><TextBlock Text="{Binding SchemaSummary}" Foreground="#AEB7C6" TextWrapping="Wrap"/><DataGrid Grid.Row="2" ItemsSource="{Binding SelectedSchemaTable.Columns}" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False"><DataGrid.Columns><DataGridTextColumn Header="#" Binding="{Binding Ordinal}" Width="45"/><DataGridTextColumn Header="Column" Binding="{Binding Name}" Width="*"/><DataGridTextColumn Header="Declared type" Binding="{Binding DeclaredType}" Width="130"/><DataGridCheckBoxColumn Header="Nullable" Binding="{Binding IsNullable}" Width="75"/><DataGridCheckBoxColumn Header="Primary key" Binding="{Binding IsPrimaryKey}" Width="85"/></DataGrid.Columns></DataGrid><DataGrid x:Name="AdvancedTableGrid" Grid.Row="4" ItemsSource="{Binding PreviewRows}" IsReadOnly="False" AutoGenerateColumns="False" CanUserAddRows="False" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.HorizontalScrollBarVisibility="Auto"><DataGrid.RowStyle><Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}"><Style.Triggers><DataTrigger Binding="{Binding IsStaged}" Value="True"><Setter Property="Background" Value="#6B5715"/></DataTrigger></Style.Triggers></Style></DataGrid.RowStyle></DataGrid></Grid>
+                            </Grid>
+                        </TabItem>
                         <TabItem>
                             <TabItem.Header><TextBlock Text="Staged changes"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/><Style.Triggers><DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type TabItem}}}" Value="True"><Setter Property="Foreground" Value="{StaticResource TextBrush}"/></DataTrigger><DataTrigger Binding="{Binding HasPendingChanges}" Value="True"><Setter Property="Foreground" Value="#FFB55A"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></TabItem.Header>
                             <Grid Margin="12">
@@ -209,12 +261,6 @@
                                 <StackPanel><TextBlock Text="Database backups" FontSize="17" FontWeight="SemiBold"/><TextBlock Text="Backups for the selected masters.db are shown here. Backups from an older game schema cannot be restored." Foreground="#AEB7C6" Margin="0,4,0,0" TextWrapping="Wrap"/></StackPanel>
                                 <DataGrid Grid.Row="2" ItemsSource="{Binding DatabaseBackups}" SelectedItem="{Binding SelectedDatabaseBackup}" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False"><DataGrid.Columns><DataGridTextColumn Header="Created" Binding="{Binding Created}" Width="170"/><DataGridTextColumn Header="Purpose" Binding="{Binding Purpose}" Width="150"/><DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="100"/><DataGridTextColumn Header="Fingerprint" Binding="{Binding Fingerprint}" Width="150"/><DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="*"/></DataGrid.Columns></DataGrid>
                                 <Grid Grid.Row="3" Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Restore first creates a verified backup of the current database." Foreground="#75D695" VerticalAlignment="Center"/><Button Grid.Column="1" Content="Restore selected backup…" IsEnabled="{Binding CanRestoreDatabaseBackup}" Click="OnRestoreDatabaseBackup" Padding="14,7"/></Grid>
-                            </Grid>
-                        </TabItem>
-                        <TabItem Header="Advanced">
-                            <Grid Margin="12"><Grid.ColumnDefinitions><ColumnDefinition Width="260"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <ListBox ItemsSource="{Binding SchemaTables}" SelectedItem="{Binding SelectedSchemaTable}" SelectionChanged="OnSchemaSelectionChanged" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="4"><TextBlock Text="{Binding Name}" FontWeight="SemiBold"/><TextBlock Text="{Binding Summary}" Foreground="#7E8999" FontSize="11"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
-                                <Grid Grid.Column="2"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="150"/><RowDefinition Height="10"/><RowDefinition Height="*"/></Grid.RowDefinitions><TextBlock Text="{Binding SchemaSummary}" Foreground="#AEB7C6" TextWrapping="Wrap"/><DataGrid Grid.Row="2" ItemsSource="{Binding SelectedSchemaTable.Columns}" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False"><DataGrid.Columns><DataGridTextColumn Header="#" Binding="{Binding Ordinal}" Width="45"/><DataGridTextColumn Header="Column" Binding="{Binding Name}" Width="*"/><DataGridTextColumn Header="Declared type" Binding="{Binding DeclaredType}" Width="130"/><DataGridCheckBoxColumn Header="Nullable" Binding="{Binding IsNullable}" Width="75"/><DataGridCheckBoxColumn Header="Primary key" Binding="{Binding IsPrimaryKey}" Width="85"/></DataGrid.Columns></DataGrid><DataGrid x:Name="AdvancedTableGrid" Grid.Row="4" ItemsSource="{Binding PreviewRows}" IsReadOnly="False" AutoGenerateColumns="False" CanUserAddRows="False" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.HorizontalScrollBarVisibility="Auto"><DataGrid.RowStyle><Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}"><Style.Triggers><DataTrigger Binding="{Binding IsStaged}" Value="True"><Setter Property="Background" Value="#6B5715"/></DataTrigger></Style.Triggers></Style></DataGrid.RowStyle></DataGrid></Grid>
                             </Grid>
                         </TabItem>
                     </TabControl>

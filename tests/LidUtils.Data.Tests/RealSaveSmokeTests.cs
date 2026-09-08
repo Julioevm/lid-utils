@@ -21,6 +21,9 @@ public sealed class RealSaveSmokeTests
         var reader = new SaveFileService(Path.GetDirectoryName(savePath), isGameRunning: () => false);
         var liveSnapshot = await reader.LoadAsync(savePath);
         Assert.True(liveSnapshot.Entries.Count > 100, $"Expected the real save to expose many entries, found {liveSnapshot.Entries.Count}.");
+        var storage = StorageEngine.Read(liveSnapshot.Json);
+        Assert.True(storage.Capacity > 0);
+        Assert.Equal(storage.Slots.Count(slot => slot.IsOccupied), storage.OccupiedCount);
 
         using var temporaryDirectory = new TemporaryDirectory();
         var copiedSave = Path.Combine(temporaryDirectory.Path, Path.GetFileName(savePath));

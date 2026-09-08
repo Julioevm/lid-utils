@@ -38,7 +38,8 @@ public partial class App : Application
         }
 
         var validator = new DatabaseValidator();
-        var saveEditor = new SaveEditorViewModel(new SaveFileService(), saveCatalog);
+        var itemCatalogService = new ItemCatalogService();
+        var saveEditor = new SaveEditorViewModel(new SaveFileService(), saveCatalog, itemCatalogService);
         var viewModel = new MainWindowViewModel(
             new DatabaseDiscoveryService(),
             validator,
@@ -46,7 +47,8 @@ public partial class App : Application
             new ReadOnlyDatabaseBrowser(),
             new DatabaseMaintenanceService(validator),
             catalog,
-            saveEditor);
+            saveEditor,
+            itemCatalogService);
 
         new MainWindow(viewModel).Show();
     }

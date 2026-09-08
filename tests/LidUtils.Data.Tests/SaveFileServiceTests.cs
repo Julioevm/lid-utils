@@ -89,6 +89,47 @@ public sealed class SaveFileServiceTests
     }
 
     [Fact]
+    public async Task Restore_ListsVerifiedBackupsAndCreatesASafetyBackup()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var savePath = Path.Combine(temporaryDirectory.Path, "user.sav");
+        await File.WriteAllBytesAsync(savePath, CreateContainer("{\"coins\":10}"));
+        var service = new SaveFileService(temporaryDirectory.Path, Path.Combine(temporaryDirectory.Path, "backups"), () => false);
+        var snapshot = await service.LoadAsync(savePath);
+        var coins = snapshot.Entries.Single(value => value.Pointer == "/coins");
+
+        await service.ApplyAsync(snapshot, [new StagedSaveChange(coins.Pointer, coins.DisplayPath, coins.Type, coins.Value, "25")]);
+        var backup = Assert.Single(await service.ListBackupsAsync(savePath));
+        Assert.Equal(SaveBackupPurpose.Apply, backup.Purpose);
+
+        var restored = await service.RestoreAsync(savePath, backup.Id);
+
+        Assert.Equal("10", restored.RestoredSnapshot.Entries.Single(value => value.Pointer == "/coins").Value);
+        Assert.Equal(SaveBackupPurpose.PreRestore, restored.SafetyBackup.Purpose);
+        Assert.Equal("10", (await service.LoadAsync(savePath)).Entries.Single(value => value.Pointer == "/coins").Value);
+        Assert.Equal(2, (await service.ListBackupsAsync(savePath)).Count);
+    }
+
+    [Fact]
+    public async Task Restore_RejectsTamperedBackupBeforeChangingTheSave()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var savePath = Path.Combine(temporaryDirectory.Path, "user.sav");
+        await File.WriteAllBytesAsync(savePath, CreateContainer("{\"coins\":10}"));
+        var service = new SaveFileService(temporaryDirectory.Path, Path.Combine(temporaryDirectory.Path, "backups"), () => false);
+        var snapshot = await service.LoadAsync(savePath);
+        var coins = snapshot.Entries.Single(value => value.Pointer == "/coins");
+        await service.ApplyAsync(snapshot, [new StagedSaveChange(coins.Pointer, coins.DisplayPath, coins.Type, coins.Value, "25")]);
+        var backup = Assert.Single(await service.ListBackupsAsync(savePath));
+        await File.WriteAllBytesAsync(backup.BackupPath, CreateContainer("{\"coins\":999}"));
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.RestoreAsync(savePath, backup.Id));
+
+        Assert.Contains("no longer matches", exception.Message);
+        Assert.Equal("25", (await service.LoadAsync(savePath)).Entries.Single(value => value.Pointer == "/coins").Value);
+    }
+
+    [Fact]
     public async Task Apply_RejectsAChangedSourceBeforeCreatingBackup()
     {
         using var temporaryDirectory = new TemporaryDirectory();
@@ -125,6 +166,52 @@ public sealed class SaveFileServiceTests
 
         Assert.Contains("is running", exception.Message);
         Assert.Equal("10", (await reader.LoadAsync(savePath)).Entries.Single(value => value.Pointer == "/coins").Value);
+    }
+
+    [Fact]
+    public async Task Apply_CombinesScalarAndStorageEditsInOneVerifiedWrite()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var savePath = Path.Combine(temporaryDirectory.Path, "user.sav");
+        const string json = """
+            {"coins":10,"user":{"uid":1},"soul":{"cl":[{"slot":0,"type":-1,"eid":""}]},"part":{"pts":{"1":[]}},"item":{"items":[]},"mushroom":{"msrs":[]},"beast":{"bsts":[]}}
+            """;
+        await File.WriteAllBytesAsync(savePath, CreateContainer(json));
+        var service = new SaveFileService(temporaryDirectory.Path, Path.Combine(temporaryDirectory.Path, "backups"), () => false);
+        var snapshot = await service.LoadAsync(savePath);
+        var coins = snapshot.Entries.Single(value => value.Pointer == "/coins");
+
+        var result = await service.ApplyAsync(snapshot,
+            [new StagedSaveChange(coins.Pointer, coins.DisplayPath, coins.Type, coins.Value, "25")],
+            [new SetStorageSlotOperation(0, new StorageItemTemplate(3, "IT_HEAL", "Heal", "{\"itemid\":\"IT_HEAL\",\"gettime\":0}"))]);
+
+        Assert.Equal("25", result.UpdatedSnapshot.Entries.Single(value => value.Pointer == "/coins").Value);
+        var inventory = StorageEngine.Read(result.UpdatedSnapshot.Json);
+        Assert.True(inventory.Slots.Single().IsOccupied);
+        Assert.Equal(3, inventory.Slots.Single().Type);
+        Assert.Equal(json, ReadJson(await File.ReadAllBytesAsync(result.BackupPath)));
+    }
+
+    [Fact]
+    public async Task Apply_RejectsRawUidOrReferenceEditsAlongsideStorageOperations()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var savePath = Path.Combine(temporaryDirectory.Path, "user.sav");
+        const string json = """
+            {"user":{"uid":1},"soul":{"cl":[{"slot":0,"type":-1,"eid":""}],"deathbag":{"1":{"99":[{"eid":"11111111-1111-1111-1111-111111111111"}]}}},"part":{"pts":{"1":[]}},"item":{"items":[]},"mushroom":{"msrs":[]},"beast":{"bsts":[]}}
+            """;
+        await File.WriteAllBytesAsync(savePath, CreateContainer(json));
+        var backupDirectory = Path.Combine(temporaryDirectory.Path, "backups");
+        var service = new SaveFileService(temporaryDirectory.Path, backupDirectory, () => false);
+        var snapshot = await service.LoadAsync(savePath);
+        var uid = snapshot.Entries.Single(value => value.Pointer == "/user/uid");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.ApplyAsync(snapshot,
+            [new StagedSaveChange(uid.Pointer, uid.DisplayPath, uid.Type, uid.Value, "2")],
+            [new ExpandStorageOperation()]));
+
+        Assert.Contains("storage graph", exception.Message);
+        Assert.False(Directory.Exists(backupDirectory));
     }
 
     private static byte[] CreateContainer(string json)

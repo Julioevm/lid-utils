@@ -8,6 +8,10 @@ The app finds and validates compatible Let It Die game databases, provides a sea
 
 The save editor is available now. It opens supported local `.sav` files, exposes searchable scalar values, stages edits for confirmation, and applies them through a fingerprint-checked, backup-first atomic replacement workflow while the game is closed. It can also export decoded JSON for inspection.
 
+Account storage editing uses the installed game's item catalogue. Load a save and a compatible database, select a storage slot, then stage adding/replacing an item, clearing it, or expanding storage by ten slots. Review the preview and pending operations before applying; undo/reset does not write to the save. Existing capacity is read from the save, not reset to a fixed starting size.
+
+The catalogue remains browseable for definitions that cannot safely be constructed; unsupported entries explain why they cannot be added. New items use baseline templates, not custom equipment upgrades or cooked variants. Character inventories and equipped items are outside this feature's scope. Automated checks cannot establish in-game acceptance: keep a backup and test edited saves separately. See [INVENTORY_PLAN.md](INVENTORY_PLAN.md) for scope and validation details.
+
 The database backup browser can restore snapshots for the selected database when the schema still matches. Backups and their metadata live under `%LOCALAPPDATA%\LidUtils\backups\databases`, audit records live under `%LOCALAPPDATA%\LidUtils\audit\databases`, and the global backup limit defaults to five. Catalog information remains helpful context, but every valid constant in the three supported tables can be changed.
 
 See [settings/CONTRIBUTING.md](settings/CONTRIBUTING.md) for the catalog format, validation rules, and contribution checklist.

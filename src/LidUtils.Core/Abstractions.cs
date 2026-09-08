@@ -106,4 +106,34 @@ public interface ISaveFileService
         SaveFileSnapshot snapshot,
         IReadOnlyCollection<StagedSaveChange> changes,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Applies scalar and account-storage edits as one verified save write.
+    /// The default keeps older service implementations usable for scalar-only callers.
+    /// </summary>
+    Task<SaveApplyResult> ApplyAsync(
+        SaveFileSnapshot snapshot,
+        IReadOnlyCollection<StagedSaveChange> changes,
+        IReadOnlyCollection<StorageOperation> storageOperations,
+        CancellationToken cancellationToken = default)
+    {
+        if (storageOperations.Count > 0)
+            throw new NotSupportedException("This save service does not support account storage edits.");
+        return ApplyAsync(snapshot, changes, cancellationToken);
+    }
+
+    /// <summary>
+    /// Lists only verified backups that were recorded for the supplied save.
+    /// The default keeps older read-only test and extension implementations usable.
+    /// </summary>
+    Task<IReadOnlyList<SaveBackupInfo>> ListBackupsAsync(
+        string sourcePath,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<SaveBackupInfo>>([]);
+
+    Task<SaveRestoreResult> RestoreAsync(
+        string sourcePath,
+        Guid backupId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromException<SaveRestoreResult>(new NotSupportedException("This save service does not support restoring backups."));
 }

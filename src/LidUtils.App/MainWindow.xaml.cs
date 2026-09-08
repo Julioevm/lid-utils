@@ -267,6 +267,11 @@ public partial class MainWindow : Window
         _viewModel.SaveEditor.ClearSearch();
     }
 
+    private void OnResetAllSaveChanges(object sender, RoutedEventArgs e)
+    {
+        _viewModel.SaveEditor.ResetAllChanges();
+    }
+
     private void OnUndoSaveChange(object sender, RoutedEventArgs e)
     {
         if (sender is Button { DataContext: SaveValueRow row }) _viewModel.SaveEditor.UndoChange(row);
@@ -292,12 +297,47 @@ public partial class MainWindow : Window
         if (sender is Button { DataContext: SaveValueRow row }) _viewModel.SaveEditor.ToggleFavorite(row);
     }
 
+    private void OnAddOrReplaceStorageSlot(object sender, RoutedEventArgs e) =>
+        _viewModel.SaveEditor.StageAddOrReplaceStorageSlot();
+
+    private void OnSetStorageEquipment(object sender, RoutedEventArgs e)
+    {
+        var catalog = _viewModel.SaveEditor.ItemCatalog;
+        if (!catalog.HasCatalog)
+        {
+            MessageBox.Show(
+                "Validate masters.db in the Game Database section before adding storage items.",
+                "Item catalog unavailable",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var picker = new ItemCatalogPickerWindow(catalog) { Owner = this };
+        if (picker.ShowDialog() == true && picker.SelectedItem is not null)
+        {
+            _viewModel.SaveEditor.StageAddOrReplaceStorageSlot(picker.SelectedItem);
+        }
+    }
+
+    private void OnClearStorageSlot(object sender, RoutedEventArgs e) =>
+        _viewModel.SaveEditor.StageClearStorageSlot();
+
+    private void OnExpandStorage(object sender, RoutedEventArgs e) =>
+        _viewModel.SaveEditor.StageStorageExpansion();
+
+    private void OnUndoLastStorageOperation(object sender, RoutedEventArgs e) =>
+        _viewModel.SaveEditor.UndoLastStorageOperation();
+
+    private void OnResetStorageOperations(object sender, RoutedEventArgs e) =>
+        _viewModel.SaveEditor.ResetStorageOperations();
+
     private async void OnApplySaveChanges(object sender, RoutedEventArgs e)
     {
-        var count = _viewModel.SaveEditor.PendingChanges.Count;
+        var count = _viewModel.SaveEditor.PendingOperationCount;
         if (count == 0) return;
         var answer = MessageBox.Show(
-            $"Apply {count:N0} staged save change(s)?\n\n" +
+            $"Apply {count:N0} staged scalar or storage change(s)?\n\n" +
             "LET IT DIE must be closed. A verified timestamped backup will be created before the save is replaced.",
             "Apply save changes",
             MessageBoxButton.YesNo,
@@ -306,6 +346,23 @@ public partial class MainWindow : Window
         if (answer == MessageBoxResult.Yes)
         {
             await _viewModel.SaveEditor.ApplyAsync();
+        }
+    }
+
+    private async void OnRestoreSaveBackup(object sender, RoutedEventArgs e)
+    {
+        var selected = _viewModel.SaveEditor.SelectedSaveBackup;
+        if (selected is null) return;
+        var answer = MessageBox.Show(
+            $"Restore the save backup from {selected.Created}?\n\n" +
+            "LET IT DIE must be closed. The current save will be backed up and verified before it is replaced.",
+            "Restore save backup",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (answer == MessageBoxResult.Yes)
+        {
+            await _viewModel.SaveEditor.RestoreSelectedSaveBackupAsync();
         }
     }
 
