@@ -9,8 +9,8 @@ public sealed class StorageEngineTests
     private const string BagPartId = "22222222-2222-2222-2222-222222222222";
 
     [Theory]
-    [InlineData("76561197974144168.json", 1, 30, 3)]
-    [InlineData("76561197974144168_old.json", 117305, 290, 277)]
+    [InlineData("save_current.json", 1, 30, 3)]
+    [InlineData("save_progress.json", 424242, 290, 277)]
     public void SuppliedSaveSamples_ReadAndExpandWithoutChangingAnythingOutsideLocker(
         string fileName,
         int expectedUid,
@@ -39,8 +39,8 @@ public sealed class StorageEngineTests
     }
 
     [Theory]
-    [InlineData("76561197974144168.json")]
-    [InlineData("76561197974144168_old.json")]
+    [InlineData("save_current.json")]
+    [InlineData("save_progress.json")]
     public void SuppliedSaveSamples_ClearLockerEntityWithoutChangingFighterBagsOrSkills(string fileName)
     {
         var json = File.ReadAllText(FindRepositoryFile("data", fileName));
@@ -63,7 +63,7 @@ public sealed class StorageEngineTests
     {
         var inventory = StorageEngine.Read(SaveJson());
 
-        Assert.Equal(117305, inventory.PlayerUid);
+        Assert.Equal(424242, inventory.PlayerUid);
         Assert.Equal(2, inventory.Capacity);
         Assert.Equal(1, inventory.OccupiedCount);
         Assert.Equal("P_START", inventory.Slots.Single(slot => slot.Slot == 0).DefinitionId);
@@ -81,7 +81,7 @@ public sealed class StorageEngineTests
         Assert.Equal(2, locker[2]!["slot"]!.GetValue<int>());
         Assert.Equal(-1, locker[2]!["type"]!.GetValue<int>());
         Assert.Equal(string.Empty, locker[2]!["eid"]!.GetValue<string>());
-        Assert.Equal($"[{{\"eid\":\"{BagPartId}\"}}]", root["soul"]!["deathbag"]!["117305"]!["77"]!.ToJsonString());
+        Assert.Equal($"[{{\"eid\":\"{BagPartId}\"}}]", root["soul"]!["deathbag"]!["424242"]!["77"]!.ToJsonString());
     }
 
     [Fact]
@@ -99,15 +99,15 @@ public sealed class StorageEngineTests
         Assert.Equal("COIN_LOCKER", replacement["owner"]!.GetValue<string>());
         Assert.True(replacement["gettime"]!.GetValue<long>() > 0);
         Assert.False(replacement.ContainsKey("uid"));
-        Assert.DoesNotContain(replacedRoot["part"]!["pts"]!["117305"]!.AsArray(), value => value!["eid"]!.GetValue<string>() == LockerPartId);
-        Assert.Equal($"[{{\"eid\":\"{BagPartId}\"}}]", replacedRoot["soul"]!["deathbag"]!["117305"]!["77"]!.ToJsonString());
+        Assert.DoesNotContain(replacedRoot["part"]!["pts"]!["424242"]!.AsArray(), value => value!["eid"]!.GetValue<string>() == LockerPartId);
+        Assert.Equal($"[{{\"eid\":\"{BagPartId}\"}}]", replacedRoot["soul"]!["deathbag"]!["424242"]!["77"]!.ToJsonString());
 
         var cleared = StorageEngine.Apply(replaced, [new ClearStorageSlotOperation(0)]);
         var clearedRoot = JsonNode.Parse(cleared)!.AsObject();
         Assert.Equal(string.Empty, clearedRoot["soul"]!["cl"]![0]!["eid"]!.GetValue<string>());
         Assert.Equal(-1, clearedRoot["soul"]!["cl"]![0]!["type"]!.GetValue<int>());
         Assert.Empty(clearedRoot["item"]!["items"]!.AsArray());
-        Assert.Equal($"[{{\"eid\":\"{BagPartId}\"}}]", clearedRoot["soul"]!["deathbag"]!["117305"]!["77"]!.ToJsonString());
+        Assert.Equal($"[{{\"eid\":\"{BagPartId}\"}}]", clearedRoot["soul"]!["deathbag"]!["424242"]!["77"]!.ToJsonString());
     }
 
     [Fact]
@@ -215,17 +215,17 @@ public sealed class StorageEngineTests
 
     private static string SaveJson() => $$"""
         {
-          "user": { "uid": 117305 },
+          "user": { "uid": 424242 },
           "soul": {
             "cl": [
               { "slot": 0, "type": 0, "eid": "{{LockerPartId}}" },
               { "slot": 1, "type": -1, "eid": "" }
             ],
-            "deathbag": { "117305": { "77": [ { "eid": "{{BagPartId}}" } ] } }
+            "deathbag": { "424242": { "77": [ { "eid": "{{BagPartId}}" } ] } }
           },
-          "part": { "pts": { "117305": [
-            { "eid": "{{LockerPartId}}", "ptid": "P_START", "uid": 117305, "owner": "COIN_LOCKER" },
-            { "eid": "{{BagPartId}}", "ptid": "P_BAG", "uid": 117305, "owner": "USER" }
+          "part": { "pts": { "424242": [
+            { "eid": "{{LockerPartId}}", "ptid": "P_START", "uid": 424242, "owner": "COIN_LOCKER" },
+            { "eid": "{{BagPartId}}", "ptid": "P_BAG", "uid": 424242, "owner": "USER" }
           ] } },
           "item": { "items": [] },
           "mushroom": { "msrs": [] },

@@ -6,7 +6,7 @@ public sealed class SaveEditorViewModelCurrencyTests
     public async Task Overview_SummarizesKeySaveValues()
     {
         var viewModel = await CreateEditorAsync(
-            StringEntry("/user/nm", "Coop"),
+            StringEntry("/user/nm", "Player"),
             StringEntry("/user/region", "eu"),
             StringEntry("/user/country", "es"),
             Entry("/soul/rank", "2"),
@@ -22,7 +22,7 @@ public sealed class SaveEditorViewModelCurrencyTests
             Entry("/playlog/base/total_play_time", "5400"),
             Entry("/playlog/kill/total_enemy_cnt", "47"));
 
-        Assert.Equal("Coop", viewModel.Overview.Title);
+        Assert.Equal("Player", viewModel.Overview.Title);
         var player = Assert.Single(viewModel.Overview.Sections, section => section.Title == "Player");
         Assert.Contains(player.Values, value => value.Label == "Region" && value.Value == "EU · ES");
         var wallet = Assert.Single(viewModel.Overview.Sections, section => section.Title == "Wallet");

@@ -2,7 +2,7 @@
 
 ## Purpose and scope
 
-This document compares the exported saves at `data/76561197974144168.json` and `data/76561197974144168_old.json`, explains the major game domains they manage, and turns those findings into feature ideas for LidUtils.
+This document compares the exported saves at `data/save_current.json` and `data/save_progress.json`, explains the major game domains they manage, and turns those findings into feature ideas for LidUtils.
 
 The first file is a small, early-progress snapshot; the older file is materially more populated and supplies later-game inventory, research, collection, quest, tower, archive, and TDM schemas. Names and behavior are **confirmed** where the existing LidUtils catalog or feature code already documents them, **inferred** where the JSON shape and identifiers make the purpose clear, and **unknown** where the data looks cached, transient, or server-controlled. A field's presence does not by itself prove that changing it is safe.
 
@@ -10,11 +10,12 @@ The snapshots contain:
 
 - The same 51 top-level keys in both files.
 - Current: about 122 KB, 1,296 objects, 70 arrays, and 6,300 scalar leaves.
-- Older/higher-progress: about 2.4 MB, 4,545 objects, 196 arrays, and 20,006 scalar leaves.
+- Older/higher-progress: about 0.4 MB after scrubbing, 4,545 objects, 196 arrays, and 20,006 scalar leaves.
+- The bundled copies are privacy-scrubbed: the platform/account identifier (`/user/psnacid`), session token (`/user/sid`), `skey`, player and fighter display names, country/region, third-party account references, and the two embedded screenshots are emptied; the higher-progress save's account `uid` was replaced with the synthetic value `424242` wherever it is used as a key or value.
 - The current snapshot has no JSON booleans or nulls. The older snapshot proves that types can vary: `/soul/current_died_cid` is the JSON boolean `false` rather than the current snapshot's empty string.
 - Several values that contain a second format inside a JSON string: nested JSON, comma-delimited IDs, or numeric text.
 
-The file also contains a player name and platform/account identifier. Exported JSON should therefore be treated as personal data when used in issues, tests, or documentation.
+A real export also contains a player name, platform/account identifier, and screenshots. Exported JSON should therefore be treated as personal data when used in issues, tests, or documentation, and scrubbed before it is bundled (the samples at `data/save_*.json` already are).
 
 ## Safety and confidence labels
 
@@ -35,7 +36,7 @@ For feature planning, risk is described as:
 
 The save is not a flat settings file. It is closer to a small relational document database:
 
-- `uid` selects an ownership/account context, but the local player's key is not fixed. The current save uses `1`; the older save uses `117305`. Player-keyed paths must therefore resolve `<uid>` from `/user/uid` or `/soul/uid`, never hard-code `/1`. Negative keys such as `-1` and `-2` appear to represent other or special contexts.
+- `uid` selects an ownership/account context, but the local player's key is not fixed. The current save uses `1`; the bundled higher-progress sample uses the synthetic `424242` (its real account uid was replaced during privacy scrubbing). Player-keyed paths must therefore resolve `<uid>` from `/user/uid` or `/soul/uid`, never hard-code `/1`. Negative keys such as `-1` and `-2` appear to represent other or special contexts.
 - `cid` identifies a player-owned fighter and joins roster, slot, stat, bag, and equipped-skill records.
 - `eid` identifies an equipment item, consumable, mushroom, or beast and joins entity records to locker/death-bag slots and floor placement records.
 - `zid` joins a zombie record to its stats, equipment, skills, mastery, rewards, and placement.
@@ -69,7 +70,7 @@ The older file is not just the same schema with larger numbers. It demonstrates 
 
 | Domain | Current snapshot | Older/higher-progress snapshot | Main conclusion |
 |---|---:|---:|---|
-| Player namespace | `uid = 1` | `uid = 117305` | Resolve `<uid>` dynamically throughout the document |
+| Player namespace | `uid = 1` | `uid = 424242` (scrubbed) | Resolve `<uid>` dynamically throughout the document |
 | Fighters | 2 fighters, 3 roster slots | 8 fighters, 9 roster slots | Roster size is variable; old states include 1 `USE`, 5 `GUARD`, 2 `FREE` |
 | Death Bags | 20 rows per fighter | 19–39 rows per fighter | Capacity is structural, not a confirmed `/soul/bag_slot` scalar |
 | Storage locker | 30 rows, 3 occupied | 290 rows, 277 occupied | `/soul/cl` is a variable-size slot table |
@@ -423,8 +424,8 @@ A small diff corpus like this is more valuable than guessing from identifier nam
 
 | File | Why it matters |
 |---|---|
-| `data/76561197974144168.json` | The analyzed exported snapshot and current evidence base |
-| `data/76561197974144168_old.json` | Higher-progress comparison that supplies populated later-game schemas and compatibility counterexamples |
+| `data/save_current.json` | The analyzed exported snapshot and current evidence base (privacy-scrubbed) |
+| `data/save_progress.json` | Higher-progress comparison that supplies populated later-game schemas and compatibility counterexamples (privacy-scrubbed) |
 | `settings/saves.catalog.json` | Curated pointer labels/categories for 22 currently known scalar values |
 | `src/LidUtils.App/SaveEditorViewModel.cs` | Existing composite feature rules for wallet, Waiting Room, account perks, rank, and VIP |
 | `src/LidUtils.App/MainWindow.xaml` | Current Save Editor navigation and presentation |

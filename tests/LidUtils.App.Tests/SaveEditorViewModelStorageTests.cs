@@ -148,14 +148,14 @@ public sealed class SaveEditorViewModelStorageTests
 
     private static string SaveJson(bool sharedLockerEntity) => $$"""
         {
-          "user": { "uid": 117305 },
+          "user": { "uid": 424242 },
           "soul": {
             "cl": [ { "slot": 0, "type": 0, "eid": "11111111-1111-1111-1111-111111111111" }, { "slot": 1, "type": -1, "eid": "" } ],
-            "deathbag": { "117305": { "77": [ { "eid": "{{(sharedLockerEntity ? "11111111-1111-1111-1111-111111111111" : "22222222-2222-2222-2222-222222222222")}}" } ] } }
+            "deathbag": { "424242": { "77": [ { "eid": "{{(sharedLockerEntity ? "11111111-1111-1111-1111-111111111111" : "22222222-2222-2222-2222-222222222222")}}" } ] } }
           },
-          "part": { "pts": { "117305": [
-            { "eid": "11111111-1111-1111-1111-111111111111", "ptid": "P_START", "uid": 117305, "owner": "COIN_LOCKER" },
-            { "eid": "22222222-2222-2222-2222-222222222222", "ptid": "P_BAG", "uid": 117305, "owner": "USER" }
+          "part": { "pts": { "424242": [
+            { "eid": "11111111-1111-1111-1111-111111111111", "ptid": "P_START", "uid": 424242, "owner": "COIN_LOCKER" },
+            { "eid": "22222222-2222-2222-2222-222222222222", "ptid": "P_BAG", "uid": 424242, "owner": "USER" }
           ] } },
           "item": { "items": [] }, "mushroom": { "msrs": [] }, "beast": { "bsts": [] }
         }

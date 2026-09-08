@@ -24,4 +24,9 @@ backups/
 *.db.bak
 *.sav
 *.sav.bak
-/data
+
+# Public sample exports (sanitized copies: personal identifiers removed).
+# Raw exports and backups stay ignored under /data/private and elsewhere.
+/data/*
+!/data/save_current.json
+!/data/save_progress.json
