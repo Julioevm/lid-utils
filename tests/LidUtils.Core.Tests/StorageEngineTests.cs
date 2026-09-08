@@ -84,6 +84,46 @@ public sealed class StorageEngineTests
         Assert.Equal($"[{{\"eid\":\"{BagPartId}\"}}]", root["soul"]!["deathbag"]!["424242"]!["77"]!.ToJsonString());
     }
 
+    [Theory]
+    [InlineData(20, 22)]
+    [InlineData(50, 52)]
+    [InlineData(100, 102)]
+    public void Apply_ExpandsByTheSelectedBlockSizes(int slotCount, int expectedCapacity)
+    {
+        var edited = StorageEngine.Apply(SaveJson(), [new ExpandStorageOperation(slotCount)]);
+
+        Assert.Equal(expectedCapacity, StorageEngine.Read(edited).Capacity);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(30)]
+    [InlineData(0)]
+    [InlineData(-10)]
+    public void Apply_RejectsExpansionBlockSizesOutsideTheAllowedChoices(int slotCount)
+    {
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => StorageEngine.Apply(SaveJson(), [new ExpandStorageOperation(slotCount)]));
+
+        Assert.Contains("10, 20, 50, or 100", exception.Message);
+    }
+
+    [Fact]
+    public void Apply_EnforcesTheMaximumAccountStorageCapacity()
+    {
+        var root = JsonNode.Parse(SaveJson())!.AsObject();
+        var locker = root["soul"]!["cl"]!.AsArray();
+        for (var slot = 2; locker.Count < ExpandStorageOperation.MaxTotalSlots - 100; slot++)
+            locker.Add(new JsonObject { ["slot"] = slot, ["type"] = -1, ["eid"] = "" });
+
+        var expanded = StorageEngine.Apply(root.ToJsonString(), [new ExpandStorageOperation(100)]);
+        Assert.Equal(ExpandStorageOperation.MaxTotalSlots, StorageEngine.Read(expanded).Capacity);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => StorageEngine.Apply(expanded, [new ExpandStorageOperation(10)]));
+        Assert.Contains("2,000", exception.Message);
+    }
+
     [Fact]
     public void Apply_ReplacesAndClearsExclusiveLockerEntity_PreservingFighterBag()
     {

@@ -135,13 +135,15 @@ public static class StorageEngine
 
     private static void Expand(JsonArray locker, ExpandStorageOperation operation)
     {
-        if (operation.SlotCount != 10)
-            throw new InvalidOperationException("Account storage can only be expanded by exactly ten slots.");
+        if (!ExpandStorageOperation.AllowedSlotCounts.Contains(operation.SlotCount))
+            throw new InvalidOperationException("Account storage can only be expanded by 10, 20, 50, or 100 slots.");
         var slots = locker.Select(value => value?.AsObject() ?? throw new InvalidOperationException("A storage slot is not an object."))
             .Select(value => RequireInt(value, "slot", "storage slot"))
             .ToArray();
         if (slots.Distinct().Count() != slots.Length)
             throw new InvalidOperationException("Storage contains duplicate slot IDs.");
+        if (slots.Length + operation.SlotCount > ExpandStorageOperation.MaxTotalSlots)
+            throw new InvalidOperationException($"Account storage cannot exceed {ExpandStorageOperation.MaxTotalSlots.ToString("N0", CultureInfo.InvariantCulture)} slots.");
         var nextSlot = slots.Length == 0 ? 0 : checked(slots.Max() + 1);
         for (var index = 0; index < operation.SlotCount; index++)
             locker.Add(new JsonObject { ["slot"] = checked(nextSlot + index), ["type"] = -1, ["eid"] = "" });

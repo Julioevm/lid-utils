@@ -62,6 +62,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     private bool _isApplying;
     private StorageInventory? _storageInventory;
     private StorageSlotRow? _selectedStorageSlot;
+    private int _selectedStorageExpansion = ExpandStorageOperation.AllowedSlotCounts[0];
     private SaveBackupRow? _selectedSaveBackup;
 
     public SaveEditorViewModel(
@@ -137,6 +138,17 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         }
     }
     public ItemCatalogEntry? SelectedCatalogItem { get => ItemCatalog.SelectedItem; set => ItemCatalog.SelectedItem = value; }
+    public IReadOnlyList<int> StorageExpansionOptions => ExpandStorageOperation.AllowedSlotCounts;
+    public int SelectedStorageExpansion
+    {
+        get => _selectedStorageExpansion;
+        set
+        {
+            if (!SetField(ref _selectedStorageExpansion, value)) return;
+            OnPropertyChanged(nameof(StorageExpansionButtonText));
+        }
+    }
+    public string StorageExpansionButtonText => $"Add {SelectedStorageExpansion:N0} slots";
     public string StorageCatalogStatus => ItemCatalog.Status;
     public string StorageSummary => _storageInventory is null
         ? "Storage is unavailable for this save."
@@ -519,7 +531,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     public void StageStorageExpansion()
     {
         if (IsBusy || _storageInventory is null) return;
-        StageStorageOperation(new ExpandStorageOperation());
+        StageStorageOperation(new ExpandStorageOperation(SelectedStorageExpansion));
     }
 
     public void UndoLastStorageOperation()

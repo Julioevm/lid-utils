@@ -10,8 +10,12 @@ public sealed record StorageItemTemplate(
 
 public abstract record StorageOperation;
 
-/// <summary>Adds empty account-storage slots. The game presently expands this in blocks of ten.</summary>
-public sealed record ExpandStorageOperation(int SlotCount = 10) : StorageOperation;
+/// <summary>Adds empty account-storage slots, capped at a total account-storage capacity of 2000.</summary>
+public sealed record ExpandStorageOperation(int SlotCount = 10) : StorageOperation
+{
+    public const int MaxTotalSlots = 2000;
+    public static readonly IReadOnlyList<int> AllowedSlotCounts = [10, 20, 50, 100];
+}
 
 /// <summary>Creates an item instance and places it in an existing locker slot.</summary>
 public sealed record SetStorageSlotOperation(int Slot, StorageItemTemplate Template) : StorageOperation;
