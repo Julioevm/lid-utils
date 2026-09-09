@@ -330,7 +330,7 @@ public partial class MapView : UserControl
         {
             var label = new TextBlock
             {
-                Text = node.ShortLabel,
+                Text = node.LabelText,
                 FontSize = 9.5,
                 Foreground = LabelBrush,
                 IsHitTestVisible = false

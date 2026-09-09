@@ -22,7 +22,7 @@ public sealed class MapNodeItem
     public required double Radius { get; init; }
     public required string StageId { get; init; }
     public required string ToolTipText { get; init; }
-    public required string ShortLabel { get; init; }
+    public required string LabelText { get; init; }
     public bool ShowLabel { get; init; }
     public bool IsHead => string.Equals(Node.FloorId, TowerMapCatalog.HeadFloorId, StringComparison.Ordinal);
     public bool HasElevator => !string.IsNullOrWhiteSpace(Node.ElevatorStopId);

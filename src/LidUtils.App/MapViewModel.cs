@@ -50,8 +50,6 @@ public sealed class MapViewModel : INotifyPropertyChanged
     private const double TopPad = 30d;
     private const double BottomPad = 26d;
     private const double HeadGap = 30d;
-    private const double LabelNeedGap = 92d;
-    private const double LabelReservedWidth = 58d;
 
     public static IReadOnlyList<string> TemplateOptions { get; } = TowerMapCatalog.TemplateIds;
 
@@ -315,16 +313,23 @@ public sealed class MapViewModel : INotifyPropertyChanged
         var shift = GutterWidth + 28d - rawMinimum;
 
         // Horizontal axis: settle every row independently. Chips keep their ofsx order but are
-        // spread to a guaranteed minimum distance so dots on one floor never overlap.
+        // spread to a guaranteed minimum distance so dots on one floor never overlap. When area
+        // labels are shown each label sits to the right of its dot, so every pair on a row is
+        // also pushed far enough apart for the left dot's name to clear the next dot.
         var settled = new Dictionary<MapNode, double>();
         foreach (var group in areaNodes.GroupBy(node => node.FloorNumber))
         {
             var ordered = group.OrderBy(node => node.OfsX).ToArray();
             var cursor = double.MinValue;
+            MapNode? previous = null;
             foreach (var node in ordered)
             {
-                cursor = Math.Max(cursor + MinimumSameRowGap, shift + node.OfsX * OfsScale);
+                var advance = MinimumSameRowGap;
+                if (ShowAreaLabels && previous is not null)
+                    advance = Math.Max(advance, 30d + EstimateLabelWidth(DisplayName(previous)));
+                cursor = Math.Max(cursor + advance, shift + node.OfsX * OfsScale);
                 settled[node] = cursor;
+                previous = node;
             }
         }
 
@@ -332,13 +337,9 @@ public sealed class MapViewModel : INotifyPropertyChanged
         foreach (var floorGroup in areaNodes.GroupBy(node => node.FloorNumber).OrderBy(group => group.Key))
         {
             var ordered = floorGroup.OrderBy(node => node.OfsX).ToArray();
-            for (var index = 0; index < ordered.Length; index++)
+            foreach (var node in ordered)
             {
-                var node = ordered[index];
                 var x = settled[node];
-                var nextX = index == ordered.Length - 1
-                    ? double.MaxValue
-                    : settled[ordered[index + 1]];
                 nodeItems.Add(new MapNodeItem
                 {
                     Node = node,
@@ -347,8 +348,8 @@ public sealed class MapViewModel : INotifyPropertyChanged
                     Radius = node.IsBase ? 7d : 5d,
                     StageId = node.StageId,
                     ToolTipText = BuildToolTip(template, node),
-                    ShortLabel = ShortAreaLabel(node.AreaId),
-                    ShowLabel = ShowAreaLabels && nextX - x >= LabelNeedGap,
+                    LabelText = DisplayName(node),
+                    ShowLabel = ShowAreaLabels,
                     ElevatorColorIndex = colorByCar.TryGetValue(node.ElevatorCarId, out var colorIndex) ? colorIndex : -1
                 });
             }
@@ -365,7 +366,7 @@ public sealed class MapViewModel : INotifyPropertyChanged
                 Radius = 9d,
                 StageId = "HEAD",
                 ToolTipText = BuildToolTip(template, headNode),
-                ShortLabel = "WAITING ROOM",
+                LabelText = TowerMapCatalog.WaitingRoomName,
                 ShowLabel = ShowAreaLabels,
                 ElevatorColorIndex = colorByCar.TryGetValue(headNode.ElevatorCarId, out var colorIndex) ? colorIndex : -1
             });
@@ -411,8 +412,17 @@ public sealed class MapViewModel : INotifyPropertyChanged
         }).ToList();
 
         var maxX = settled.Values.DefaultIfEmpty(0).Max();
-        var labelReserve = ShowAreaLabels ? LabelReservedWidth + 40d : 26d;
-        var contentWidth = maxX + labelReserve;
+        // When labels are on, keep enough canvas past the right-most dot for the widest
+        // label that ends a row.
+        var endReserve = 26d;
+        if (ShowAreaLabels)
+        {
+            endReserve = areaNodes
+                .GroupBy(node => node.FloorNumber)
+                .Select(group => group.OrderBy(node => node.OfsX).Last())
+                .Max(node => 12d + EstimateLabelWidth(DisplayName(node)) + 8d);
+        }
+        var contentWidth = maxX + endReserve;
         var contentHeight = headNode is not null
             ? nodeItems.Single(item => item.IsHead).Y + 30d + BottomPad
             : TopPad + (maxFloor - minFloor) * RowHeight + RowHeight / 2d + BottomPad;
@@ -489,6 +499,13 @@ public sealed class MapViewModel : INotifyPropertyChanged
         var marker = areaId.LastIndexOf('_');
         return marker >= 0 && marker < areaId.Length - 1 ? areaId[(marker + 1)..] : areaId;
     }
+
+    /// <summary>
+    /// Rough pixel width of a 9.5px area label. Used to reserve horizontal space so a label never
+    /// collides with the next dot; deliberately overestimates a little.
+    /// </summary>
+    private static double EstimateLabelWidth(string label) =>
+        Math.Max(24d, label.Length * 6.2d + 10d);
 
     private static MapAreaRow ToAreaRow(MapNode node)
     {

@@ -93,6 +93,11 @@ public sealed class MapViewModelTests
         viewModel.ShowAreaLabels = true;
         Assert.True(viewModel.GeometryVersion > versionAfterLoad);
 
+        // On-map labels carry the localised area name, not the area-id code.
+        var mapNode = viewModel.Nodes.Single(node => node.Node.AreaId == "MET_AREA_010");
+        Assert.True(mapNode.ShowLabel);
+        Assert.Equal("IMA OKA", mapNode.LabelText);
+
         var area = viewModel.AreaRows.Single(row => row.Node.AreaId == "MET_AREA_010");
         viewModel.SelectArea(area);
         Assert.True(viewModel.HasSelection);
@@ -104,6 +109,30 @@ public sealed class MapViewModelTests
         viewModel.SelectedTemplate = "A";
         Assert.False(viewModel.HasSelection);
         Assert.Equal(2, viewModel.Edges.Count); // rotation A drops the gated side route
+    }
+
+    [Fact]
+    public void ShowAreaLabels_DisplaysEveryAreaNameEvenOnCrowdedRows()
+    {
+        var viewModel = new MapViewModel();
+        viewModel.SetResult(Fixture());
+        viewModel.SelectedBand = MapViewModel.BandOptions.Single(option => option.Key == "S_MET");
+        viewModel.ShowAreaLabels = true;
+
+        // Every visible area carries its name when the toggle is on; none is hidden
+        // just because another dot sits close on the same floor.
+        Assert.All(viewModel.Nodes.Where(node => !node.IsHead),
+            node => Assert.True(node.ShowLabel, $"{node.Node.AreaId} label hidden"));
+        Assert.Contains(viewModel.Nodes, node => node.LabelText == "WANOKI");
+        Assert.Contains(viewModel.Nodes, node => node.LabelText == "KITA");
+
+        // ... but the pair still gets pushed far enough apart for the left name to clear
+        // the right dot (labels never overlap a neighbour chip).
+        var floorTwo = viewModel.Nodes
+            .Where(node => node.Node.FloorNumber == 2)
+            .OrderBy(node => node.X)
+            .ToArray();
+        Assert.True(floorTwo[1].X - floorTwo[0].X >= 60d);
     }
 
     [Fact]
