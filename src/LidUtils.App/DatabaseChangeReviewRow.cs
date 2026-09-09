@@ -1,3 +1,5 @@
+using LidUtils.Core;
+
 namespace LidUtils.App;
 
 public sealed record DatabaseChangeReviewRow(
@@ -5,4 +7,7 @@ public sealed record DatabaseChangeReviewRow(
     string Source,
     string OriginalRawValue,
     string ProposedRawValue,
-    string WarningSummary);
+    string WarningSummary,
+    SettingId? SettingId = null,
+    AdvancedTableRow? AdvancedRow = null,
+    string? ColumnName = null);

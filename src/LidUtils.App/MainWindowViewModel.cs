@@ -309,9 +309,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public Task ApplyDatabaseChangesAsync() => RunBusyAsync(async cancellationToken =>
     {
-        var tableChanges = GetAdvancedChanges();
+        var tableChangeItems = GetAdvancedChanges();
+        var tableChanges = tableChangeItems.Select(item => item.Change).ToArray();
         if (_loadedMetadata is null ||
-            (!_changeStaging.HasPendingChanges && tableChanges.Count == 0) ||
+            (!_changeStaging.HasPendingChanges && tableChanges.Length == 0) ||
             _changeStaging.HasInvalidDrafts ||
             PreviewRows.Any(row => row.HasInvalidDraft) ||
             HasUnsettledDatabaseDrafts ||
@@ -406,6 +407,22 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _changeStaging.Reset(row.Entry.Id);
         row.ResetEditState();
         RefreshPendingChanges();
+    }
+
+    public void RemoveReviewRow(DatabaseChangeReviewRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        if (row.SettingId is { } settingId)
+        {
+            _changeStaging.Reset(settingId);
+            if (Settings.FirstOrDefault(candidate => candidate.Entry.Id == settingId) is { } settingRow)
+                settingRow.ResetEditState();
+            RefreshPendingChanges();
+            return;
+        }
+        if (row.AdvancedRow is not { } advancedRow || row.ColumnName is not { } columnName) return;
+        if (advancedRow.Cells.FirstOrDefault(cell => string.Equals(cell.ColumnName, columnName, StringComparison.Ordinal)) is not { } cell) return;
+        cell.Undo();
     }
 
     public void ResetAllChanges()
@@ -617,8 +634,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         foreach (var change in _changeStaging.PendingChanges) PendingChanges.Add(change);
         ChangeReviewRows.Clear();
         foreach (var change in PendingChanges)
-            ChangeReviewRows.Add(new DatabaseChangeReviewRow(change.SettingLabel, change.Source, change.OriginalRawValue, change.ProposedRawValue, change.WarningSummary));
-        foreach (var change in GetAdvancedChanges())
+            ChangeReviewRows.Add(new DatabaseChangeReviewRow(change.SettingLabel, change.Source, change.OriginalRawValue, change.ProposedRawValue, change.WarningSummary, change.Entry.Id));
+        foreach (var (row, change) in GetAdvancedChanges())
         {
             foreach (var cell in change.Cells)
                 ChangeReviewRows.Add(new DatabaseChangeReviewRow(
@@ -626,16 +643,22 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
                     $"{change.Source}.{cell.ColumnName}",
                     FormatTableValue(cell.OriginalValue),
                     FormatTableValue(cell.ProposedValue),
-                    "Advanced table edit"));
+                    "Advanced table edit",
+                    AdvancedRow: row,
+                    ColumnName: cell.ColumnName));
         }
         OnPropertyChanged(nameof(HasPendingChanges));
         OnPropertyChanged(nameof(CanApplyDatabaseChanges));
     }
 
-    private IReadOnlyList<StagedTableRowChange> GetAdvancedChanges() =>
+    private IReadOnlyList<(AdvancedTableRow Row, StagedTableRowChange Change)> GetAdvancedChanges() =>
         SelectedTablePreview is null
             ? []
-            : PreviewRows.Select(row => row.BuildChange(SelectedTablePreview.TableName)).OfType<StagedTableRowChange>().ToArray();
+            : PreviewRows
+                .Select(row => (Row: row, Change: row.BuildChange(SelectedTablePreview.TableName)))
+                .Where(item => item.Change is not null)
+                .Select(item => (item.Row, item.Change!))
+                .ToArray();
 
     private static string FormatTableValue(object? value) => value switch
     {

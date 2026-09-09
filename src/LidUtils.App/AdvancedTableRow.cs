@@ -19,7 +19,7 @@ public sealed class AdvancedTableRow : INotifyPropertyChanged
     {
         _columnNames = columnNames;
         _primaryKeyColumns = primaryKeyColumns;
-        Cells = row.Cells.Select(cell => new AdvancedTableCell(cell, canEdit && !cell.IsBlob)).ToArray();
+        Cells = row.Cells.Select((cell, index) => new AdvancedTableCell(cell, canEdit && !cell.IsBlob, _columnNames[index])).ToArray();
         foreach (var cell in Cells) cell.DraftChanged += (_, _) => OnRowChanged();
     }
 
@@ -79,8 +79,9 @@ public sealed class AdvancedTableCell : INotifyPropertyChanged
     private string _validationError = string.Empty;
     private object? _proposedValue;
 
-    public AdvancedTableCell(TablePreviewCell cell, bool isEditable)
+    public AdvancedTableCell(TablePreviewCell cell, bool isEditable, string columnName)
     {
+        ColumnName = columnName;
         OriginalValue = cell.Value;
         OriginalDisplayValue = cell.DisplayValue;
         IsEditable = isEditable;
@@ -90,6 +91,7 @@ public sealed class AdvancedTableCell : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public event EventHandler? DraftChanged;
+    public string ColumnName { get; }
     public object? OriginalValue { get; }
     public object? ProposedValue => _proposedValue;
     public string OriginalDisplayValue { get; }

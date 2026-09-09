@@ -534,17 +534,21 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         StageStorageOperation(new ExpandStorageOperation(SelectedStorageExpansion));
     }
 
-    public void UndoLastStorageOperation()
+    public void UndoLastStorageOperation() => UndoStorageOperationAt(_storageOperations.Count - 1);
+
+    public void UndoStorageOperationAt(int index)
     {
-        if (IsBusy || _storageOperations.Count == 0) return;
-        _storageOperations.RemoveAt(_storageOperations.Count - 1);
+        if (IsBusy || index < 0 || index >= _storageOperations.Count) return;
+        var removed = _storageOperations[index];
+        _storageOperations.RemoveAt(index);
         if (_storageOperations.Count == 0)
         {
             if (_snapshot is not null) LoadStorageInventory(_snapshot, clearOperations: false);
         }
-        else
+        else if (!TryPreviewStorageOperations(_storageOperations, out var error))
         {
-            TryPreviewStorageOperations(_storageOperations, out _);
+            _storageOperations.Insert(index, removed);
+            ItemCatalog.ShowStatus($"Storage operation could not be removed: {error}");
         }
         RefreshStorageOperations();
     }
@@ -768,7 +772,23 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     {
         ChangeReviewRows.Clear();
         foreach (var change in _staging.PendingChanges) ChangeReviewRows.Add(SaveChangeReviewRow.From(change));
-        foreach (var operation in PendingStorageOperations) ChangeReviewRows.Add(SaveChangeReviewRow.From(operation));
+        for (var index = 0; index < PendingStorageOperations.Count; index++)
+            ChangeReviewRows.Add(SaveChangeReviewRow.From(PendingStorageOperations[index], index));
+    }
+
+    public void RemoveReviewRow(SaveChangeReviewRow row)
+    {
+        if (IsBusy) return;
+        ArgumentNullException.ThrowIfNull(row);
+        if (row.StorageOperationIndex is { } operationIndex)
+        {
+            UndoStorageOperationAt(operationIndex);
+            return;
+        }
+        if (row.Pointer is not { } pointer) return;
+        _staging.Reset(pointer);
+        SyncValueRowFromStaging(pointer);
+        RefreshPendingChanges();
     }
 
     private async Task RefreshSaveBackupsAsync(string sourcePath, CancellationToken cancellationToken)

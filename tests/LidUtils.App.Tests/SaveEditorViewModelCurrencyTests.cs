@@ -134,6 +134,33 @@ public sealed class SaveEditorViewModelCurrencyTests
     }
 
     [Fact]
+    public async Task RemoveReviewRow_RemovesOnlyTheTargetedScalarChange()
+    {
+        var viewModel = await CreateEditorAsync(
+            Entry("/soul/spirit", "1234"),
+            Entry("/soul/free_money", "100"));
+
+        var splithium = Assert.Single(viewModel.Currencies, row => row.Label == "SPLithium");
+        splithium.DraftValue = "2000";
+        var killCoins = Assert.Single(viewModel.Currencies, row => row.Label == "Kill Coins");
+        killCoins.DraftValue = "500";
+        Assert.Equal(2, viewModel.ChangeReviewRows.Count);
+
+        var reviewRow = Assert.Single(viewModel.ChangeReviewRows, row => row.Pointer == "/soul/spirit");
+        viewModel.RemoveReviewRow(reviewRow);
+
+        var pending = Assert.Single(viewModel.PendingChanges);
+        Assert.Equal("/soul/free_money", pending.Pointer);
+        Assert.Single(viewModel.ChangeReviewRows);
+        Assert.False(splithium.IsStaged);
+        Assert.Equal(splithium.CurrentValue, splithium.DraftValue);
+        Assert.True(killCoins.IsStaged);
+        var rawRow = Assert.Single(viewModel.DisplayedValues, value => value.Entry.Pointer == "/soul/spirit");
+        Assert.False(rawRow.IsStaged);
+        Assert.Equal(rawRow.CurrentValue, rawRow.DraftValue);
+    }
+
+    [Fact]
     public async Task RankDraft_SyncsRankPointsToOfficialRequirement()
     {
         var viewModel = await CreateEditorAsync(

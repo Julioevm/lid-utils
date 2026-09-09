@@ -164,6 +164,11 @@ public partial class MainWindow : Window
         _viewModel.ResetAllChanges();
     }
 
+    private void OnRemoveDatabaseReviewRow(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: DatabaseChangeReviewRow row }) _viewModel.RemoveReviewRow(row);
+    }
+
     private async void OnApplyDatabaseChanges(object sender, RoutedEventArgs e)
     {
         var count = _viewModel.ChangeReviewRows.Count;
@@ -270,6 +275,11 @@ public partial class MainWindow : Window
     private void OnResetAllSaveChanges(object sender, RoutedEventArgs e)
     {
         _viewModel.SaveEditor.ResetAllChanges();
+    }
+
+    private void OnRemoveSaveReviewRow(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: SaveChangeReviewRow row }) _viewModel.SaveEditor.RemoveReviewRow(row);
     }
 
     private void OnUndoSaveChange(object sender, RoutedEventArgs e)

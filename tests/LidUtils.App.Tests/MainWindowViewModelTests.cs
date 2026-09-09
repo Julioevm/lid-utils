@@ -112,6 +112,28 @@ public sealed class MainWindowViewModelTests
         });
     }
 
+    [Fact]
+    public void ReviewRowRemove_RestoresTheSettingDraftAndClearsOnlyItsPendingChange()
+    {
+        RunOnSta(async () =>
+        {
+            var viewModel = await LoadAsync(new TestValidator(), Entry("COUNT", "10"), Entry("OTHER", "1"));
+            viewModel.Settings.Single(row => row.Key == "COUNT").DraftValue = "12";
+            await Task.Delay(500);
+
+            var reviewRow = Assert.Single(viewModel.ChangeReviewRows, row => row.Source == "master_const_int:COUNT");
+            viewModel.RemoveReviewRow(reviewRow);
+
+            Assert.Empty(viewModel.ChangeReviewRows);
+            Assert.Empty(viewModel.PendingChanges);
+            Assert.False(viewModel.HasPendingChanges);
+            var row = viewModel.Settings.Single(row => row.Key == "COUNT");
+            Assert.Equal("10", row.DraftValue);
+            Assert.False(row.IsStaged);
+            Assert.Equal(string.Empty, row.ValidationError);
+        });
+    }
+
     private static async Task<MainWindowViewModel> LoadAsync(TestValidator validator, params SettingEntry[] entries)
         => await LoadAsync(validator, new TestDatabaseMaintenanceService(), entries);
 

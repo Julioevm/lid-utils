@@ -86,6 +86,30 @@ public sealed class SaveEditorViewModelStorageTests
     }
 
     [Fact]
+    public async Task RemoveReviewRow_RemovesTheTargetedStorageOperationAndKeepsTheRest()
+    {
+        var viewModel = await CreateEditorAsync();
+        viewModel.SelectedStorageExpansion = 10;
+        viewModel.StageStorageExpansion();
+        viewModel.SelectedStorageExpansion = 20;
+        viewModel.StageStorageExpansion();
+        viewModel.SelectedStorageExpansion = 50;
+        viewModel.StageStorageExpansion();
+
+        Assert.Equal(3, viewModel.PendingStorageOperations.Count);
+        Assert.Equal(82, viewModel.StorageSlots.Count);
+
+        viewModel.RemoveReviewRow(viewModel.ChangeReviewRows.Single(row => row.StorageOperationIndex == 1));
+
+        Assert.Equal(2, viewModel.PendingStorageOperations.Count);
+        Assert.Equal(62, viewModel.StorageSlots.Count);
+        Assert.Equal(
+            ["Add 10 empty storage slots.", "Add 50 empty storage slots."],
+            viewModel.PendingStorageOperations.Select(row => row.Details).ToArray());
+        Assert.True(viewModel.HasPendingChanges);
+    }
+
+    [Fact]
     public async Task StagedChangesReview_IncludesStorageOperationsAndResetAllClearsThem()
     {
         var viewModel = await CreateEditorAsync();
