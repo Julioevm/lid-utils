@@ -253,6 +253,102 @@ public sealed class StorageEngineTests
         Assert.Contains("does not match definition", Assert.Throws<InvalidOperationException>(() => StorageEngine.Apply(SaveJson(), [new SetStorageSlotOperation(1, wrongDefinition)])).Message);
     }
 
+    [Fact]
+    public void Apply_ExpandsEachOwnedFighterDeathBagByTenWithSequentialEmptySlots()
+    {
+        var json = File.ReadAllText(FindRepositoryFile("data", "save_current.json"));
+        var edited = StorageEngine.Apply(json, [new ExpandDeathBagsOperation()]);
+        var originalRoot = JsonNode.Parse(json)!.AsObject();
+        var editedRoot = JsonNode.Parse(edited)!.AsObject();
+
+        var originalBags = originalRoot["soul"]!["deathbag"]!["1"]!.AsObject();
+        var editedBags = editedRoot["soul"]!["deathbag"]!["1"]!.AsObject();
+        Assert.Equal(2, originalBags.Count);
+        foreach (var (cid, value) in editedBags)
+        {
+            var bag = value!.AsArray();
+            Assert.Equal(30, bag.Count);
+            Assert.True(originalBags.ContainsKey(cid));
+            for (var index = 20; index < 30; index++)
+            {
+                var row = bag[index]!.AsObject();
+                Assert.Equal(index, row["slot"]!.GetValue<int>());
+                Assert.Equal(-1, row["type"]!.GetValue<int>());
+                Assert.Equal(string.Empty, row["eid"]!.GetValue<string>());
+                Assert.Equal(string.Empty, row["site"]!.GetValue<string>());
+                Assert.Equal(-1, row["arm_slot"]!.GetValue<int>());
+                Assert.Equal(1, row["uid"]!.GetValue<int>());
+                Assert.Equal(cid, row["cid"]!.GetValue<string>());
+            }
+        }
+
+        // Nothing outside the owned fighters' Death Bags may change.
+        Assert.True(originalRoot["soul"]!["deathbag"]!.AsObject().Remove("1"));
+        Assert.True(editedRoot["soul"]!["deathbag"]!.AsObject().Remove("1"));
+        Assert.True(JsonNode.DeepEquals(originalRoot, editedRoot));
+    }
+
+    [Fact]
+    public void Apply_DeathBagExpansion_LeavesTransientAndOtherOwnerBagsUntouched()
+    {
+        var json = File.ReadAllText(FindRepositoryFile("data", "save_current.json"));
+        var originalRoot = JsonNode.Parse(json)!.AsObject();
+        var edited = StorageEngine.Apply(json, [new ExpandDeathBagsOperation()]);
+        var editedRoot = JsonNode.Parse(edited)!.AsObject();
+
+        var originalOthers = originalRoot["soul"]!["deathbag"]!.AsObject().Where(pair => pair.Key != "1");
+        foreach (var (key, _) in originalOthers)
+        {
+            Assert.True(JsonNode.DeepEquals(
+                originalRoot["soul"]!["deathbag"]![key],
+                editedRoot["soul"]!["deathbag"]![key]));
+        }
+    }
+
+    [Fact]
+    public void Apply_DeathBagExpansion_ClonesTheExistingRowShape()
+    {
+        var edited = StorageEngine.Apply(SaveJson(), [new ExpandDeathBagsOperation()]);
+        var bag = JsonNode.Parse(edited)!["soul"]!["deathbag"]!["424242"]!["77"]!.AsArray();
+
+        Assert.Equal(11, bag.Count);
+        var firstNew = bag[1]!.AsObject();
+        Assert.Equal(1, firstNew["slot"]!.GetValue<int>());
+        Assert.Equal(-1, firstNew["type"]!.GetValue<int>());
+        Assert.Equal(string.Empty, firstNew["eid"]!.GetValue<string>());
+        Assert.Null(firstNew["uid"]);
+        Assert.False(firstNew.ContainsKey("site"));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    [InlineData(71)]
+    public void Apply_RejectsDeathBagExpansionOutsideTheAllowedRowCounts(int rowsPerBag)
+    {
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => StorageEngine.Apply(SaveJson(), [new ExpandDeathBagsOperation(rowsPerBag)]));
+
+        Assert.Contains($"1 to {ExpandDeathBagsOperation.MaximumRowsPerBag}", exception.Message);
+    }
+
+    [Fact]
+    public void Apply_DeathBagExpansion_CapsEachBagAtTheMaximumRowCount()
+    {
+        var root = JsonNode.Parse(SaveJson())!.AsObject();
+        var bag = root["soul"]!["deathbag"]!["424242"]!["77"]!.AsArray();
+        for (var slot = bag.Count; bag.Count < ExpandDeathBagsOperation.MaximumRowsPerBag - 5; slot++)
+            bag.Add(new JsonObject { ["slot"] = slot, ["type"] = -1, ["eid"] = "" });
+
+        var first = StorageEngine.Apply(root.ToJsonString(), [new ExpandDeathBagsOperation()]);
+        Assert.Equal(ExpandDeathBagsOperation.MaximumRowsPerBag,
+            JsonNode.Parse(first)!["soul"]!["deathbag"]!["424242"]!["77"]!.AsArray().Count);
+
+        var second = StorageEngine.Apply(first, [new ExpandDeathBagsOperation()]);
+        Assert.Equal(ExpandDeathBagsOperation.MaximumRowsPerBag,
+            JsonNode.Parse(second)!["soul"]!["deathbag"]!["424242"]!["77"]!.AsArray().Count);
+    }
+
     private static string SaveJson() => $$"""
         {
           "user": { "uid": 424242 },

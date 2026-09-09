@@ -19,7 +19,6 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         new(SaveNumericFieldGroup.WaitingRoom, "KC Bank level", "Waiting room storage bank level. Raises how much KC and SPLithium the bank holds.", "/soul/safe_level", null, 1, 100),
         new(SaveNumericFieldGroup.WaitingRoom, "SPL Tank level", "Waiting room SPL tank level. Raises SPLithium storage capacity.", "/soul/spirit_tank_level", null, 1, 100),
         new(SaveNumericFieldGroup.WaitingRoom, "Player Rank", "Player rank shown in the waiting room. The required rank points are staged to the official value for the chosen rank.", "/soul/rank", null, 1, 130, RankPointPointer: "/soul/rank_point"),
-        new(SaveNumericFieldGroup.Account, "Death Bag capacity", "Slot capacity of the Death Bag.", "/soul/bag_slot", null, 20, 70),
         new(SaveNumericFieldGroup.Account, "Free continues", "Free continues available in the Tower of Barbs.", "/soul/free_continue_count", null, 0, 999, TwinPointer: "/soul/free_continue_max_count"),
         new(SaveNumericFieldGroup.Account, "Login streak", "Consecutive login bonus days.", "/user/login_keep", null, 0, 365)
     ];
@@ -29,10 +28,9 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         "/soul/vip/flag",
         "/soul/vip/expired_time",
         "/soul/vip/type",
-        "/soul/vip/automatic_renewal",
-        "/soul/vip/friendship",
         "/soul/vip/pass_num",
-        "/soul/vip/oneday_pass_num"
+        "/soul/vip/oneday_pass_num",
+        "/soul/vip/last_use_day"
     ];
 
     private readonly ISaveFileService _saveFileService;
@@ -390,46 +388,131 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         if (row.RankPointEntry is not null) SyncValueRowFromStaging(row.RankPointEntry.Pointer);
     }
 
+    /// <summary>
+    /// Activates the Royal Express VIP for exactly one day (type 1) or thirty days (type 0),
+    /// mirroring the states observed from in-game purchases. Only the very first activation
+    /// consumes a matching banked pass and adds the Death Bag bonus rows, exactly as the game
+    /// spends a banked pass and grants the bag expansion when VIP is turned on.
+    /// </summary>
     public void ActivateVip(int days)
     {
         if (Vip is not { IsAvailable: true }) return;
-        var safeDays = Math.Clamp(days, 1, SaveVipSection.MaximumVipDays);
-        Vip.SelectedDays = safeDays;
-        if (!TryParseReservePasses(Vip, out var reservePasses)) return;
-        var expiry = DateTimeOffset.UtcNow.ToUnixTimeSeconds() + safeDays * 86400L;
+        var oneDay = days <= SaveVipSection.OneDayVipDays;
+        var safeDays = oneDay ? SaveVipSection.OneDayVipDays : SaveVipSection.ThirtyDayVipDays;
+        var vipType = oneDay ? SaveVipSection.OneDayVipType : SaveVipSection.ThirtyDayVipType;
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        if (!Vip.IsActive && !StageVipBagExpansion(out var expansionError))
+        {
+            Vip.ValidationError = expansionError;
+            return;
+        }
+
         StageVipPointer("/soul/vip/flag", "1");
-        StageVipPointer("/soul/vip/expired_time", expiry.ToString(CultureInfo.InvariantCulture));
-        StageVipPointer("/soul/vip/type", "0");
-        StageVipPointer("/soul/vip/automatic_renewal", "0");
-        StageVipPointer("/soul/vip/friendship", "1");
-        var reservePassesText = reservePasses.ToString(CultureInfo.InvariantCulture);
-        StageVipPointer("/soul/vip/pass_num", reservePassesText);
-        StageVipPointer("/soul/vip/oneday_pass_num", reservePassesText);
+        StageVipPointer("/soul/vip/type", vipType.ToString(CultureInfo.InvariantCulture));
+        StageVipPointer("/soul/vip/expired_time", (now + safeDays * 86400L).ToString(CultureInfo.InvariantCulture));
+        if (!Vip.IsActive)
+        {
+            // Observed in-game grants rewrite this stamp when VIP switches on.
+            StageVipPointer("/soul/vip/last_use_day", now.ToString(CultureInfo.InvariantCulture));
+            ConsumeOneBankedPass(vipType);
+        }
+
+        Vip.ValidationError = string.Empty;
         SyncVipPointers();
         RefreshPendingChanges();
     }
 
-    private static bool TryParseReservePasses(SaveVipSection vip, out int reservePasses)
+    /// <summary>Adds the supplied count of 30-day Royal Express passes to the inventory.</summary>
+    public void AddThirtyDayPasses()
     {
-        var trimmed = vip.ReservePassesText.Trim();
-        if (long.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount) &&
-            amount is >= 0 and <= SaveVipSection.MaximumReservePasses)
+        if (Vip is not { IsAvailable: true } section) return;
+        AddVipPassesToInventory(section, "/soul/vip/pass_num", section.PassesText);
+    }
+
+    /// <summary>Adds the supplied count of 1-day Royal Express passes to the inventory.</summary>
+    public void AddOneDayPasses()
+    {
+        if (Vip is not { IsAvailable: true } section) return;
+        AddVipPassesToInventory(section, "/soul/vip/oneday_pass_num", section.OneDayPassesText);
+    }
+
+    /// <summary>
+    /// Stages an empty-slot Death Bag expansion for every owned fighter. This is a structural
+    /// change: the save stores bag capacity as slot rows under /soul/deathbag/&lt;uid&gt;/&lt;cid&gt;,
+    /// not as a /soul/bag_slot scalar. When the loaded snapshot has no decoded JSON (test
+    /// fixtures) the expansion cannot be previewed and is skipped.
+    /// </summary>
+    private bool StageVipBagExpansion(out string error)
+    {
+        error = string.Empty;
+        if (_snapshot is null || string.IsNullOrWhiteSpace(_snapshot.Json)) return true;
+        var operation = new ExpandDeathBagsOperation(SaveVipSection.BagSlotBonus);
+        var candidate = _storageOperations.Append(operation).ToArray();
+        if (!TryPreviewStorageOperations(candidate, out error))
         {
-            vip.ValidationError = string.Empty;
-            reservePasses = (int)amount;
-            return true;
+            error = $"VIP Death Bag expansion was not staged: {error}";
+            return false;
         }
 
-        vip.ValidationError = $"Enter a whole number between 0 and {SaveVipSection.MaximumReservePasses} for the reserve passes.";
-        reservePasses = 0;
-        return false;
+        _storageOperations.Add(operation);
+        RefreshStorageOperations();
+        return true;
     }
+
+    /// <summary>
+    /// Mirrors the in-game activation that spends one banked pass of the matching kind.
+    /// Activation still succeeds when no matching pass is owned; only the count is left alone.
+    /// </summary>
+    private void ConsumeOneBankedPass(int vipType)
+    {
+        var pointer = vipType == SaveVipSection.OneDayVipType
+            ? "/soul/vip/oneday_pass_num"
+            : "/soul/vip/pass_num";
+        if (ResolveNumberEntry(pointer) is not { } entry) return;
+        var owned = ParseEntryAmount(entry.Value);
+        if (owned <= 0) return;
+        _staging.Stage(entry, (owned - 1).ToString(CultureInfo.InvariantCulture));
+    }
+
+    private void AddVipPassesToInventory(SaveVipSection vip, string pointer, string text)
+    {
+        if (!TryParsePassAmount(text, out var count))
+        {
+            vip.ValidationError = $"Enter a whole number between 0 and {SaveVipSection.MaximumReservePasses} passes to add.";
+            return;
+        }
+
+        if (count == 0)
+        {
+            vip.ValidationError = string.Empty;
+            return;
+        }
+
+        if (ResolveNumberEntry(pointer) is not { } entry) return;
+        var total = ParseEntryAmount(entry.Value) + count;
+        if (total > SaveVipSection.MaximumReservePasses)
+        {
+            vip.ValidationError = $"The inventory would exceed {SaveVipSection.MaximumReservePasses} passes.";
+            return;
+        }
+
+        _staging.Stage(entry, total.ToString(CultureInfo.InvariantCulture));
+        vip.ValidationError = string.Empty;
+        SyncVipPointers();
+        RefreshPendingChanges();
+    }
+
+    private static bool TryParsePassAmount(string text, out int amount) =>
+        int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out amount) &&
+        amount is >= 0 and <= SaveVipSection.MaximumReservePasses;
 
     public void DeactivateVip()
     {
         if (Vip is not { IsAvailable: true }) return;
         StageVipPointer("/soul/vip/flag", "0");
         StageVipPointer("/soul/vip/expired_time", "0");
+        StageVipPointer("/soul/vip/type", "0");
         SyncVipPointers();
         RefreshPendingChanges();
     }
@@ -438,6 +521,13 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     {
         if (Vip is null) return;
         foreach (var pointer in VipPointers) _staging.Reset(pointer);
+        for (var index = _storageOperations.Count - 1; index >= 0; index--)
+        {
+            if (_storageOperations[index] is ExpandDeathBagsOperation)
+                UndoStorageOperationAt(index);
+        }
+
+        Vip.ValidationError = string.Empty;
         SyncVipPointers();
         RefreshPendingChanges();
     }
@@ -706,7 +796,11 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         foreach (var field in Currencies) field.SyncFromStaging(_staging);
         foreach (var field in WaitingRoomFields) field.SyncFromStaging(_staging);
         foreach (var field in AccountFields) field.SyncFromStaging(_staging);
-        if (Vip is not null) Vip.IsStaged = VipPointers.Any(pointer => _staging.Get(pointer) is not null);
+        if (Vip is not null)
+        {
+            Vip.IsStaged = VipPointers.Any(pointer => _staging.Get(pointer) is not null) ||
+                           _storageOperations.Any(operation => operation is ExpandDeathBagsOperation);
+        }
         if (!HasPendingChanges && IsShowingStagedChanges) IsShowingStagedChanges = false;
         ApplyFilter();
         OnPropertyChanged(nameof(HasPendingChanges));
@@ -901,7 +995,9 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         var flagValue = ParseEntryAmount(flag.Value);
         var expiryValue = ParseEntryAmount(expiry.Value);
         var isActive = flagValue == 1 && expiryValue > DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        return new SaveVipSection(true, isActive, expiryValue);
+        var thirtyDayPasses = ResolveNumberEntry("/soul/vip/pass_num") is { } passEntry ? ParseEntryAmount(passEntry.Value) : 0;
+        var oneDayPasses = ResolveNumberEntry("/soul/vip/oneday_pass_num") is { } oneDayEntry ? ParseEntryAmount(oneDayEntry.Value) : 0;
+        return new SaveVipSection(true, isActive, expiryValue, thirtyDayPasses, oneDayPasses);
     }
 
     private SaveOverview BuildOverview()
@@ -1068,6 +1164,7 @@ public sealed record StorageOperationReviewRow(string Operation, string Details)
     public static StorageOperationReviewRow From(StorageOperation operation) => operation switch
     {
         ExpandStorageOperation expand => new("Expand storage", $"Add {expand.SlotCount:N0} empty storage slots."),
+        ExpandDeathBagsOperation expandBags => new("Expand Death Bags", $"Add {expandBags.RowsPerBag:N0} empty Death Bag slots to each owned fighter."),
         ClearStorageSlotOperation clear => new("Clear storage slot", $"Remove the item reference from slot {clear.Slot:N0}."),
         SetStorageSlotOperation set => new("Add or replace storage slot", $"Slot {set.Slot:N0}: {set.Template.Name} ({set.Template.DefinitionId})."),
         _ => new("Storage operation", operation.ToString() ?? "Pending storage edit")
@@ -1178,7 +1275,7 @@ public sealed class SaveNumericFieldRow : INotifyPropertyChanged
     public string Label => Definition.Label;
     public string Description => Definition.Description;
     public long OriginalAmount => ParseAmount(_main.Value) + (_zeroed is null ? 0 : ParseAmount(_zeroed.Value));
-    public string CurrentValue => OriginalAmount.ToString("N0", CultureInfo.CurrentCulture);
+    public string CurrentValue => OriginalAmount.ToString(CultureInfo.InvariantCulture);
     public string DetailsToolTip
     {
         get
@@ -1234,15 +1331,26 @@ public sealed class SaveNumericFieldRow : INotifyPropertyChanged
 
 public sealed class SaveVipSection : INotifyPropertyChanged
 {
-    public const int MaximumVipDays = 30;
+    public const int OneDayVipDays = 1;
+    public const int ThirtyDayVipDays = 30;
+    /// <summary>In-game VIP uses type 1 for a 1-day pass and type 0 for the 30-day pass.</summary>
+    public const int OneDayVipType = 1;
+    public const int ThirtyDayVipType = 0;
     public const int MaximumReservePasses = 99;
+    /// <summary>Empty Death Bag slot rows added per owned fighter when VIP is first activated.</summary>
+    public const int BagSlotBonus = 10;
 
     private bool _isStaged;
-    private int _selectedDays = MaximumVipDays;
-    private string _reservePassesText = "99";
+    private string _passesText = "0";
+    private string _oneDayPassesText = "0";
     private string _validationError = string.Empty;
 
-    public SaveVipSection(bool isAvailable, bool isActive, long expiresAtUnixSeconds)
+    public SaveVipSection(
+        bool isAvailable,
+        bool isActive,
+        long expiresAtUnixSeconds,
+        long thirtyDayPasses = 0,
+        long oneDayPasses = 0)
     {
         IsAvailable = isAvailable;
         IsActive = isActive;
@@ -1260,6 +1368,7 @@ public sealed class SaveVipSection : INotifyPropertyChanged
         ExpiresText = expiresAtUnixSeconds > 0
             ? $"Pass expiry: {DateTimeOffset.FromUnixTimeSeconds(expiresAtUnixSeconds).ToLocalTime():g}"
             : "No pass expiry recorded.";
+        InventoryText = $"Stored passes · 30-day: {thirtyDayPasses:N0} · 1-day: {oneDayPasses:N0}";
     }
 
     public static SaveVipSection Unavailable { get; } = new(false, false, 0);
@@ -1269,10 +1378,9 @@ public sealed class SaveVipSection : INotifyPropertyChanged
     public bool IsActive { get; }
     public string StatusText { get; }
     public string ExpiresText { get; }
-    public IReadOnlyList<int> DaysOptions { get; } = [1, 7, 15, MaximumVipDays];
-    public string DaysHint => $"Maximum {MaximumVipDays} active days to avoid reported elevator errors.";
-    public int SelectedDays { get => _selectedDays; set => SetField(ref _selectedDays, value); }
-    public string ReservePassesText { get => _reservePassesText; set => SetField(ref _reservePassesText, value); }
+    public string InventoryText { get; }
+    public string PassesText { get => _passesText; set => SetField(ref _passesText, value); }
+    public string OneDayPassesText { get => _oneDayPassesText; set => SetField(ref _oneDayPassesText, value); }
     public string ValidationError { get => _validationError; set => SetField(ref _validationError, value); }
     public bool IsStaged { get => _isStaged; set => SetField(ref _isStaged, value); }
 

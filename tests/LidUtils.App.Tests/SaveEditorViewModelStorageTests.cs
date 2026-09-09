@@ -167,6 +167,61 @@ public sealed class SaveEditorViewModelStorageTests
         return viewModel;
     }
 
+    [Fact]
+    public async Task ActivateVip_StagesScalarState_AndADeathBagExpansionOperation()
+    {
+        var service = new RecordingSaveFileService(VipSnapshot());
+        var viewModel = new SaveEditorViewModel(service);
+        await viewModel.SelectPathAsync(service.Snapshot.Path);
+
+        Assert.True(viewModel.Vip!.IsAvailable);
+        Assert.False(viewModel.Vip.IsActive);
+
+        viewModel.ActivateVip(1);
+
+        Assert.True(viewModel.Vip.IsStaged);
+        var expansion = Assert.Single(viewModel.PendingStorageOperations);
+        Assert.Equal("Expand Death Bags", expansion.Operation);
+        Assert.Contains("10", expansion.Details);
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/vip/flag" && change.ProposedValue == "1");
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/vip/type" && change.ProposedValue == "1");
+        Assert.Contains(viewModel.PendingChanges, change => change.Pointer == "/soul/vip/oneday_pass_num" && change.OriginalValue == "1" && change.ProposedValue == "0");
+
+        viewModel.UndoVip();
+
+        Assert.Empty(viewModel.PendingStorageOperations);
+        Assert.Empty(viewModel.PendingChanges);
+        Assert.False(viewModel.Vip.IsStaged);
+    }
+
+    private static SaveFileSnapshot VipSnapshot() => new(
+        "C:\\save.sav", 1, 1, 1, 1, DateTime.UnixEpoch, "sha256", VipSnapshotEntries(), VipSaveJson());
+
+    private static SaveValueEntry[] VipSnapshotEntries() =>
+    [
+        new("/soul/vip/flag", "/soul/vip/flag", SaveValueType.Number, "0"),
+        new("/soul/vip/expired_time", "/soul/vip/expired_time", SaveValueType.Number, "0"),
+        new("/soul/vip/type", "/soul/vip/type", SaveValueType.Number, "0"),
+        new("/soul/vip/pass_num", "/soul/vip/pass_num", SaveValueType.Number, "0"),
+        new("/soul/vip/oneday_pass_num", "/soul/vip/oneday_pass_num", SaveValueType.Number, "1"),
+        new("/soul/vip/last_use_day", "/soul/vip/last_use_day", SaveValueType.Number, "-1")
+    ];
+
+    private static string VipSaveJson() => $$"""
+        {
+          "user": { "uid": 424242 },
+          "soul": {
+            "cl": [ { "slot": 0, "type": -1, "eid": "" }, { "slot": 1, "type": -1, "eid": "" } ],
+            "deathbag": { "424242": { "77": [ { "uid": 424242, "cid": "77", "slot": 0, "type": -1, "eid": "", "site": "", "arm_slot": -1 } ] } },
+            "vip": { "flag": 0, "expired_time": 0, "type": 0, "pass_num": 0, "oneday_pass_num": 1, "last_use_day": -1 }
+          },
+          "part": { "pts": { "424242": [] } },
+          "item": { "items": [] },
+          "mushroom": { "msrs": [] },
+          "beast": { "bsts": [] }
+        }
+        """;
+
     private static SaveFileSnapshot Snapshot(bool sharedLockerEntity = false) => new(
         "C:\\save.sav", 1, 1, 1, 1, DateTime.UnixEpoch, "sha256", [], SaveJson(sharedLockerEntity));
 

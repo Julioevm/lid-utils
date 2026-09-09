@@ -42,6 +42,9 @@ public static class StorageEngine
                 case ExpandStorageOperation expand:
                     Expand(locker, expand);
                     break;
+                case ExpandDeathBagsOperation expandBags:
+                    ExpandDeathBags(root, uid, expandBags);
+                    break;
                 case SetStorageSlotOperation set:
                     SetSlot(root, locker, uid, set);
                     break;
@@ -147,6 +150,59 @@ public static class StorageEngine
         var nextSlot = slots.Length == 0 ? 0 : checked(slots.Max() + 1);
         for (var index = 0; index < operation.SlotCount; index++)
             locker.Add(new JsonObject { ["slot"] = checked(nextSlot + index), ["type"] = -1, ["eid"] = "" });
+    }
+
+    /// <summary>
+    /// Appends empty Death Bag slot rows to every owned fighter (the bag keyed by the player
+    /// UID under /soul/deathbag). Each new row clones the shape of the bag's last row so older
+    /// or variant schemas keep their own field set. Rows are capped per bag to keep an
+    /// accidental repeat activation from growing a bag without limit.
+    /// </summary>
+    private static void ExpandDeathBags(JsonObject root, int uid, ExpandDeathBagsOperation operation)
+    {
+        if (operation.RowsPerBag is <= 0 or > ExpandDeathBagsOperation.MaximumRowsPerBag)
+            throw new InvalidOperationException(
+                $"Fighter Death Bags can only be expanded by 1 to {ExpandDeathBagsOperation.MaximumRowsPerBag} slots at a time.");
+
+        if (root["soul"]?["deathbag"] is not JsonObject deathBags) return;
+        if (deathBags[uid.ToString(CultureInfo.InvariantCulture)] is not JsonObject ownedBags) return;
+
+        foreach (var (cid, value) in ownedBags)
+        {
+            if (value is not JsonArray bag) continue;
+            var rowsToAdd = Math.Min(operation.RowsPerBag, ExpandDeathBagsOperation.MaximumRowsPerBag - bag.Count);
+            if (rowsToAdd <= 0) continue;
+            var firstNewSlot = bag.Count;
+            for (var index = firstNewSlot; index < firstNewSlot + rowsToAdd; index++)
+                bag.Add(EmptyBagRow(bag, uid, cid, index));
+        }
+    }
+
+    private static JsonObject EmptyBagRow(JsonArray bag, int uid, string cid, int slotIndex)
+    {
+        JsonObject row;
+        if (bag.LastOrDefault() is JsonObject { Count: > 0 } template)
+        {
+            row = new JsonObject();
+            foreach (var property in template)
+                row[property.Key] = property.Value?.DeepClone();
+        }
+        else
+        {
+            row = new JsonObject
+            {
+                ["uid"] = uid,
+                ["cid"] = cid
+            };
+        }
+
+        // Normalize the clone to an empty slot regardless of the template's previous state.
+        row["slot"] = slotIndex;
+        row["type"] = -1;
+        row["eid"] = "";
+        if (row.ContainsKey("site")) row["site"] = "";
+        if (row.ContainsKey("arm_slot")) row["arm_slot"] = -1;
+        return row;
     }
 
     private static void SetSlot(JsonObject root, JsonArray locker, int uid, SetStorageSlotOperation operation)

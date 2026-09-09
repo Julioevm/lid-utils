@@ -23,6 +23,16 @@ public sealed record SetStorageSlotOperation(int Slot, StorageItemTemplate Templ
 /// <summary>Empties an existing locker slot, removing its instance only when it has no other reference.</summary>
 public sealed record ClearStorageSlotOperation(int Slot) : StorageOperation;
 
+/// <summary>
+/// Adds empty Death Bag slots to every owned fighter, mirroring the Royal Express VIP
+/// activation bonus. The Death Bag has no scalar capacity pointer; its capacity is the
+/// number of slot rows stored per fighter under /soul/deathbag/&lt;player uid&gt;/&lt;cid&gt;.
+/// </summary>
+public sealed record ExpandDeathBagsOperation(int RowsPerBag = 10) : StorageOperation
+{
+    public const int MaximumRowsPerBag = 70;
+}
+
 public sealed record StorageSlot(
     int Slot,
     int Type,

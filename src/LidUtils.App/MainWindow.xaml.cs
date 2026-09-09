@@ -292,11 +292,13 @@ public partial class MainWindow : Window
         if (sender is Button { DataContext: SaveNumericFieldRow row }) _viewModel.SaveEditor.UndoField(row);
     }
 
-    private void OnActivateVip(object sender, RoutedEventArgs e)
-    {
-        var days = VipDaysCombo.SelectedItem as int? ?? 30;
-        _viewModel.SaveEditor.ActivateVip(days);
-    }
+    private void OnActivateOneDayVip(object sender, RoutedEventArgs e) => _viewModel.SaveEditor.ActivateVip(1);
+
+    private void OnActivateThirtyDayVip(object sender, RoutedEventArgs e) => _viewModel.SaveEditor.ActivateVip(30);
+
+    private void OnAddThirtyDayPasses(object sender, RoutedEventArgs e) => _viewModel.SaveEditor.AddThirtyDayPasses();
+
+    private void OnAddOneDayPasses(object sender, RoutedEventArgs e) => _viewModel.SaveEditor.AddOneDayPasses();
 
     private void OnDeactivateVip(object sender, RoutedEventArgs e) => _viewModel.SaveEditor.DeactivateVip();
 
