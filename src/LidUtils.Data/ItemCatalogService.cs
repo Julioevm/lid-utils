@@ -5,7 +5,7 @@ using Microsoft.Data.Sqlite;
 namespace LidUtils.Data;
 
 /// <summary>Reads master definitions using read-only SQLite connections.</summary>
-public sealed class ItemCatalogService : IItemCatalogService
+public sealed class ItemCatalogService : IItemCatalogService, IDecalCatalogService
 {
     private readonly object _snapshotGate = new();
     private CatalogSnapshot _snapshot = CatalogSnapshot.Empty;
@@ -74,6 +74,64 @@ public sealed class ItemCatalogService : IItemCatalogService
                 MushroomJson(data.RewardMushroomId)), null),
             _ => new(null, "This definition is missing a validated baseline field required to create it.")
         };
+    }
+
+    public async Task<DecalCatalogLoadResult> LoadDecalsAsync(string databasePath, string? language = null,
+        CancellationToken cancellationToken = default)
+    {
+        var warnings = new List<string>();
+        var definitions = new List<DecalDefinition>();
+        if (string.IsNullOrWhiteSpace(databasePath) || !File.Exists(databasePath))
+            return new DecalCatalogLoadResult(definitions, ["The masters database path does not exist; decal definitions are unavailable."]);
+
+        try
+        {
+            await using var connection = await OpenReadOnlyAsync(databasePath, cancellationToken);
+            var columns = await ColumnsAsync(connection, "master_skill", cancellationToken);
+            if (!columns.Contains("id"))
+            {
+                warnings.Add("Table 'master_skill' is missing the identifier column; decal definitions could not be loaded.");
+                return new DecalCatalogLoadResult(definitions, warnings);
+            }
+
+            var hasText = Has(await ColumnsAsync(connection, "master_text", cancellationToken), "sct", "id", "lang", "txt");
+            if (!hasText) warnings.Add("Table 'master_text' is missing or incomplete; decal definition keys are shown instead of localized names.");
+            var selected = new[] { "type", "premium", "rarity", "platform" }.Where(columns.Contains).ToArray();
+            var requestedLanguage = string.IsNullOrWhiteSpace(language) ? "int" : language.Trim();
+            await using var command = Localized(connection, "master_skill", "id", "name", selected, requestedLanguage, hasText);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var id = Text(reader, 0);
+                if (string.IsNullOrWhiteSpace(id)) continue;
+                var values = Values(reader, selected, 2);
+                if (Int(values, "platform") is { } platform && platform != 0) continue;
+                var rarity = Int(values, "rarity") is { } value && value > 0 ? (int?)value : null;
+                definitions.Add(new DecalDefinition(
+                    id,
+                    Name(reader, 2 + selected.Length, Text(reader, 1), id),
+                    Int(values, "premium") is { } premium && premium != 0,
+                    rarity,
+                    TypeLabel(values)));
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exception) when (exception is SqliteException or IOException or UnauthorizedAccessException)
+        {
+            warnings.Add($"The decal catalog could not be read: {exception.Message}");
+        }
+
+        definitions.Sort((left, right) => string.Compare(left.SkillId, right.SkillId, StringComparison.OrdinalIgnoreCase));
+        return new DecalCatalogLoadResult(definitions, warnings);
+    }
+
+    private static string TypeLabel(IReadOnlyDictionary<string, object?> values)
+    {
+        if (!values.TryGetValue("type", out var raw) || raw is null) return "";
+        var type = Convert.ToString(raw)?.Trim();
+        if (string.IsNullOrWhiteSpace(type)) return "";
+        const string prefix = "SKLTP_";
+        return type.StartsWith(prefix, StringComparison.Ordinal) ? type[prefix.Length..] : type;
     }
 
     private static async Task LoadPartsAsync(SqliteConnection c, string language, bool text, List<ItemCatalogEntry> entries,

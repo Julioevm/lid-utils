@@ -292,6 +292,16 @@ public partial class MainWindow : Window
         if (sender is Button { DataContext: SaveNumericFieldRow row }) _viewModel.SaveEditor.UndoField(row);
     }
 
+    private void OnUndoDecalChange(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: DecalCollectionRow row }) _viewModel.SaveEditor.UndoDecal(row);
+    }
+
+    private void OnClearDecalSearch(object sender, RoutedEventArgs e)
+    {
+        _viewModel.SaveEditor.ClearDecalSearch();
+    }
+
     private void OnActivateOneDayVip(object sender, RoutedEventArgs e) => _viewModel.SaveEditor.ActivateVip(1);
 
     private void OnActivateThirtyDayVip(object sender, RoutedEventArgs e) => _viewModel.SaveEditor.ActivateVip(30);
