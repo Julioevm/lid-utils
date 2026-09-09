@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "2026.09.4",
+  "catalogVersion": "2026.09.5",
   "values": [
     {
       "pointer": "/user/free_medal",
@@ -62,20 +62,6 @@
       "pointer": "/soul/spirit_tank_level",
       "label": "SPL Tank level",
       "description": "Waiting room SPL tank level. Raises SPLithium storage capacity.",
-      "category": "Waiting room",
-      "valueType": "number"
-    },
-    {
-      "pointer": "/soul/freezer_level",
-      "label": "Freezer level",
-      "description": "Waiting room Fighter Freezer level. Raises how many haterfied fighters can be stored for salvage.",
-      "category": "Waiting room",
-      "valueType": "number"
-    },
-    {
-      "pointer": "/soul/prison_level",
-      "label": "Restroom level",
-      "description": "Waiting room restroom level. Raises how many captured fighters can be held for ransom or SPLithium extraction.",
       "category": "Waiting room",
       "valueType": "number"
     },
