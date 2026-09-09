@@ -147,8 +147,10 @@ These are the best-understood values because LidUtils already has composite beha
 | Bloodnium | `/soul/bloodnium_point` | `0` | Known currency |
 | RE Points | `/soul/recycle_point` | `0` | Known currency |
 | Player rank | `/soul/rank`, `/soul/rank_point` | `2`, `200` | Rank points are derived and staged with rank |
-| KC Bank level | `/soul/safe_level` | `1` | Existing curated Waiting Room field |
-| SPL Tank level | `/soul/spirit_tank_level` | `1` | Existing curated Waiting Room field |
+| KC Bank level | `/soul/safe_level` | `1` | Existing curated Waiting Room field; `master_safe_level` caps at 99 |
+| SPL Tank level | `/soul/spirit_tank_level` | `1` | Existing curated Waiting Room field; `master_spirit_tank_level` caps at 99 |
+| Freezer level | `/soul/freezer_level` | not recorded | Curated Waiting Room field (1-8, `master_freezer`); pointer inferred from the safe/tank `_level` naming and the `KGF_FACILITY_UPGRADE_FREEZER` flags — the scalar is absent from every supplied save, so the row only appears on saves that record it |
+| Restroom level | `/soul/prison_level` | not recorded | Curated Waiting Room field (1-6, `master_prison`; the game's UI title is "Restroom", internal facility name is the prison); pointer inferred the same way and absent from every supplied save |
 | Free continues | `/soul/free_continue_count`, `/soul/free_continue_max_count` | `0`, `0` | Existing paired edit |
 | Royal Express | `/soul/vip/*` | inactive | Existing multi-field activate/deactivate workflow |
 

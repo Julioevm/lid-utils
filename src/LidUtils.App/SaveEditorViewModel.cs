@@ -16,8 +16,10 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         new(SaveNumericFieldGroup.Currency, "SPLithium", "Energy currency stored in the SPL tank and spent on waiting room facility upgrades.", "/soul/spirit"),
         new(SaveNumericFieldGroup.Currency, "Bloodnium", "Currency earned from defeated Haters; used for special exchanges.", "/soul/bloodnium_point"),
         new(SaveNumericFieldGroup.Currency, "RE Points", "Recycle points earned by recycling equipment; used for special exchanges.", "/soul/recycle_point"),
-        new(SaveNumericFieldGroup.WaitingRoom, "KC Bank level", "Waiting room storage bank level. Raises how much KC and SPLithium the bank holds.", "/soul/safe_level", null, 1, 100),
-        new(SaveNumericFieldGroup.WaitingRoom, "SPL Tank level", "Waiting room SPL tank level. Raises SPLithium storage capacity.", "/soul/spirit_tank_level", null, 1, 100),
+        new(SaveNumericFieldGroup.WaitingRoom, "KC Bank level", "Waiting room storage bank level. Raises how much KC and SPLithium the bank holds.", "/soul/safe_level", null, 1, 99),
+        new(SaveNumericFieldGroup.WaitingRoom, "SPL Tank level", "Waiting room SPL tank level. Raises SPLithium storage capacity.", "/soul/spirit_tank_level", null, 1, 99),
+        new(SaveNumericFieldGroup.WaitingRoom, "Freezer level", "Waiting room Fighter Freezer level. Raises how many haterfied fighters can be stored for salvage.", "/soul/freezer_level", null, 1, 8),
+        new(SaveNumericFieldGroup.WaitingRoom, "Restroom level", "Waiting room restroom level. Raises how many captured fighters can be held for ransom or SPLithium extraction.", "/soul/prison_level", null, 1, 6),
         new(SaveNumericFieldGroup.WaitingRoom, "Player Rank", "Player rank shown in the waiting room. The required rank points are staged to the official value for the chosen rank.", "/soul/rank", null, 1, 130, RankPointPointer: "/soul/rank_point"),
         new(SaveNumericFieldGroup.Account, "Free continues", "Free continues available in the Tower of Barbs.", "/soul/free_continue_count", null, 0, 999, TwinPointer: "/soul/free_continue_max_count"),
         new(SaveNumericFieldGroup.Account, "Login streak", "Consecutive login bonus days.", "/user/login_keep", null, 0, 365)

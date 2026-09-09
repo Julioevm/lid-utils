@@ -188,13 +188,51 @@ public sealed class SaveEditorViewModelCurrencyTests
         var bankLevel = Assert.Single(viewModel.WaitingRoomFields, row => row.Label == "KC Bank level");
         bankLevel.DraftValue = "150";
 
-        Assert.Contains("between 1 and 100", bankLevel.ValidationError);
+        Assert.Contains("between 1 and 99", bankLevel.ValidationError);
         Assert.Empty(viewModel.PendingChanges);
 
-        bankLevel.DraftValue = "100";
+        bankLevel.DraftValue = "99";
 
         Assert.Equal(string.Empty, bankLevel.ValidationError);
         Assert.Equal("/soul/safe_level", Assert.Single(viewModel.PendingChanges).Pointer);
+    }
+
+    [Fact]
+    public async Task FreezerDraft_EnforcesMaxLevelEight()
+    {
+        var viewModel = await CreateEditorAsync(Entry("/soul/freezer_level", "3"));
+
+        var freezer = Assert.Single(viewModel.WaitingRoomFields, row => row.Label == "Freezer level");
+        Assert.Equal(3, freezer.OriginalAmount);
+
+        freezer.DraftValue = "9";
+
+        Assert.Contains("between 1 and 8", freezer.ValidationError);
+        Assert.Empty(viewModel.PendingChanges);
+
+        freezer.DraftValue = "8";
+
+        Assert.Equal(string.Empty, freezer.ValidationError);
+        Assert.Equal("/soul/freezer_level", Assert.Single(viewModel.PendingChanges).Pointer);
+    }
+
+    [Fact]
+    public async Task RestroomDraft_EnforcesMaxLevelSix()
+    {
+        var viewModel = await CreateEditorAsync(Entry("/soul/prison_level", "2"));
+
+        var restroom = Assert.Single(viewModel.WaitingRoomFields, row => row.Label == "Restroom level");
+        Assert.Equal(2, restroom.OriginalAmount);
+
+        restroom.DraftValue = "7";
+
+        Assert.Contains("between 1 and 6", restroom.ValidationError);
+        Assert.Empty(viewModel.PendingChanges);
+
+        restroom.DraftValue = "6";
+
+        Assert.Equal(string.Empty, restroom.ValidationError);
+        Assert.Equal("/soul/prison_level", Assert.Single(viewModel.PendingChanges).Pointer);
     }
 
     [Fact]
