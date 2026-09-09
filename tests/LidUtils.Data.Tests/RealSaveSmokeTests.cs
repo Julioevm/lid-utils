@@ -46,4 +46,38 @@ public sealed class RealSaveSmokeTests
         var hashAfter = SHA256.HashData(originalAfter);
         Assert.True(CryptographicOperations.FixedTimeEquals(hashBefore, hashAfter));
     }
+
+    [Fact]
+    [Trait("Category", "LocalIntegration")]
+    public async Task LoadAndGrantCopy_AppendsDecalWithoutWritingToOriginal()
+    {
+        var savePath = Environment.GetEnvironmentVariable("LID_UTILS_SMOKE_SAVE");
+        if (string.IsNullOrWhiteSpace(savePath))
+        {
+            // Opt-in only: ordinary test runs must not depend on a game installation.
+            return;
+        }
+
+        var originalBefore = await File.ReadAllBytesAsync(savePath);
+        using var temporaryDirectory = new TemporaryDirectory();
+        var copiedSave = Path.Combine(temporaryDirectory.Path, Path.GetFileName(savePath));
+        await File.WriteAllBytesAsync(copiedSave, originalBefore);
+        var copyService = new SaveFileService(temporaryDirectory.Path, Path.Combine(temporaryDirectory.Path, "backups"), () => false);
+        var copySnapshot = await copyService.LoadAsync(copiedSave);
+        const string grantId = "SKL_LIDUTILS_SMOKE";
+        var inventory = DecalInventory.Read(copySnapshot.Json);
+        if (inventory.ContainsSkill(grantId))
+        {
+            // A previous smoke run reached the game already; the append path is covered elsewhere.
+            return;
+        }
+
+        var result = await copyService.ApplyAsync(copySnapshot, [], [], [new GrantDecalOperation(grantId, 2)]);
+
+        var updated = DecalInventory.Read(result.UpdatedSnapshot.Json);
+        Assert.True(updated.ContainsSkill(grantId));
+        Assert.Equal(2, updated.Owned.Single(row => row.SkillId == grantId).Count);
+        Assert.Equal(originalBefore, await File.ReadAllBytesAsync(result.BackupPath));
+        Assert.Equal(originalBefore, await File.ReadAllBytesAsync(savePath));
+    }
 }

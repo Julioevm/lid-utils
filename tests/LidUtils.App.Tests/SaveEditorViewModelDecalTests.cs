@@ -115,7 +115,7 @@ public sealed class SaveEditorViewModelDecalTests
         Assert.False(row.IsStaged);
         Assert.Empty(viewModel.PendingChanges);
         Assert.Equal("1", row.DraftValue);
-        Assert.Equal("1", viewModel.DisplayedValues.Single(value => value.Entry.Pointer == row.Entry.Pointer).DraftValue);
+        Assert.Equal("1", viewModel.DisplayedValues.Single(value => value.Entry.Pointer == row.Entry!.Pointer).DraftValue);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public sealed class SaveEditorViewModelDecalTests
         Assert.Single(viewModel.DisplayedDecals, row => row.SkillId == "SKL_EQUIPPED_P");
 
         viewModel.ClearDecalSearch();
-        Assert.Equal(2, viewModel.DisplayedDecals.Count);
+        Assert.Equal(3, viewModel.DisplayedDecals.Count);
         Assert.False(viewModel.HasDecalSearchText);
     }
 
@@ -165,7 +165,7 @@ public sealed class SaveEditorViewModelDecalTests
         Assert.Equal("SKL_EQUIPPED_P", remaining.SkillId);
 
         viewModel.IsDecalPremiumOnly = false;
-        Assert.Equal(2, viewModel.DisplayedDecals.Count);
+        Assert.Equal(3, viewModel.DisplayedDecals.Count);
     }
 
     [Fact]
@@ -173,10 +173,184 @@ public sealed class SaveEditorViewModelDecalTests
     {
         var viewModel = await LoadCatalogAsync();
 
-        Assert.Equal(["SKL_EQUIPPED_P", "SKL_FREE"], viewModel.DisplayedDecals.Select(row => row.SkillId).ToArray());
+        Assert.Equal(["SKL_EQUIPPED_P", "SKL_CATALOG_ONLY", "SKL_FREE"], viewModel.DisplayedDecals.Select(row => row.SkillId).ToArray());
 
         viewModel.SelectedDecalSort = SaveEditorViewModel.DecalSortName;
-        Assert.Equal(["SKL_FREE", "SKL_EQUIPPED_P"], viewModel.DisplayedDecals.Select(row => row.SkillId).ToArray());
+        Assert.Equal(["SKL_CATALOG_ONLY", "SKL_FREE", "SKL_EQUIPPED_P"], viewModel.DisplayedDecals.Select(row => row.SkillId).ToArray());
+    }
+
+    [Fact]
+    public async Task Load_FullCatalogListsUnownedRowsAfterOwnedRows()
+    {
+        var viewModel = await LoadCatalogAsync();
+
+        Assert.Equal(3, viewModel.DisplayedDecals.Count);
+        var unowned = Assert.Single(viewModel.DisplayedDecals, row => row.SkillId == "SKL_CATALOG_ONLY");
+        Assert.False(unowned.IsOwned);
+        Assert.Equal("—", unowned.OwnedText);
+        Assert.True(unowned.CanGrant);
+        Assert.Equal("Catalog Only", unowned.DisplayName);
+        Assert.Equal("Grants a coin bonus.", unowned.DescriptionText);
+        Assert.Contains("Grants a coin bonus.", unowned.DetailsToolTip, StringComparison.Ordinal);
+        Assert.Equal(0, unowned.EquippedCount);
+    }
+
+    [Fact]
+    public async Task HideOwned_ShowsOnlyGrantableRows()
+    {
+        var viewModel = await LoadCatalogAsync();
+
+        viewModel.IsDecalOwnedHidden = true;
+
+        var remaining = Assert.Single(viewModel.DisplayedDecals);
+        Assert.Equal("SKL_CATALOG_ONLY", remaining.SkillId);
+
+        viewModel.IsDecalOwnedHidden = false;
+        Assert.Equal(3, viewModel.DisplayedDecals.Count);
+    }
+
+    [Fact]
+    public async Task RarityFilter_ShowsOnlyMatchingRarity()
+    {
+        var viewModel = await LoadCatalogAsync();
+
+        viewModel.SelectedDecalRarityFilter = "5★";
+        Assert.Equal(["SKL_EQUIPPED_P"], viewModel.DisplayedDecals.Select(row => row.SkillId).ToArray());
+
+        viewModel.SelectedDecalRarityFilter = "1★";
+        Assert.Equal(["SKL_FREE"], viewModel.DisplayedDecals.Select(row => row.SkillId).ToArray());
+
+        viewModel.SelectedDecalRarityFilter = SaveEditorViewModel.DecalRarityAll;
+        Assert.Equal(3, viewModel.DisplayedDecals.Count);
+    }
+
+    [Fact]
+    public async Task RarityFilter_CombinesWithHideOwned()
+    {
+        var viewModel = await LoadCatalogAsync();
+
+        viewModel.IsDecalOwnedHidden = true;
+        viewModel.SelectedDecalRarityFilter = "1★";
+
+        Assert.Empty(viewModel.DisplayedDecals);
+
+        viewModel.SelectedDecalRarityFilter = "2★";
+        Assert.Equal(["SKL_CATALOG_ONLY"], viewModel.DisplayedDecals.Select(row => row.SkillId).ToArray());
+    }
+
+    [Fact]
+    public async Task GrantDecal_StagesGrantAndQueuesReviewRow()
+    {
+        var viewModel = await LoadCatalogAsync();
+        var row = Assert.Single(viewModel.DisplayedDecals, item => item.SkillId == "SKL_CATALOG_ONLY");
+        row.SelectedGrantQuantity = 2;
+
+        viewModel.GrantDecal(row);
+
+        Assert.True(row.IsGranted);
+        Assert.False(row.CanGrant);
+        Assert.Equal("Queued ×2", row.GrantStatus);
+        var grant = Assert.Single(viewModel.PendingDecalGrants);
+        Assert.Equal("SKL_CATALOG_ONLY", grant.SkillId);
+        Assert.Equal("Grant Catalog Only ×2.", grant.Details);
+        Assert.Equal(1, viewModel.PendingOperationCount);
+        Assert.True(viewModel.HasPendingChanges);
+        Assert.True(viewModel.CanApply);
+        Assert.Contains("1 grant(s) queued", viewModel.DecalSummary, StringComparison.OrdinalIgnoreCase);
+        var review = Assert.Single(viewModel.ChangeReviewRows, change => change.Change == "Decal grant");
+        Assert.Equal("SKL_CATALOG_ONLY", review.Location);
+    }
+
+    [Fact]
+    public async Task GrantDecal_ForOwnedRow_IsIgnored()
+    {
+        var viewModel = await LoadCatalogAsync();
+        var row = Assert.Single(viewModel.DisplayedDecals, item => item.SkillId == "SKL_FREE");
+
+        viewModel.GrantDecal(row);
+
+        Assert.Empty(viewModel.PendingDecalGrants);
+        Assert.False(viewModel.HasPendingChanges);
+    }
+
+    [Fact]
+    public async Task GrantDecal_TwiceForSameDecal_IsIgnoredTheSecondTime()
+    {
+        var viewModel = await LoadCatalogAsync();
+        var row = Assert.Single(viewModel.DisplayedDecals, item => item.SkillId == "SKL_CATALOG_ONLY");
+
+        viewModel.GrantDecal(row);
+        viewModel.GrantDecal(row);
+
+        Assert.Single(viewModel.PendingDecalGrants);
+    }
+
+    [Fact]
+    public async Task UndoDecalGrant_RemovesQueuedGrantAndRestoresTheRow()
+    {
+        var viewModel = await LoadCatalogAsync();
+        var row = Assert.Single(viewModel.DisplayedDecals, item => item.SkillId == "SKL_CATALOG_ONLY");
+        viewModel.GrantDecal(row);
+
+        viewModel.UndoLastDecalGrant();
+
+        Assert.Empty(viewModel.PendingDecalGrants);
+        Assert.False(viewModel.HasPendingChanges);
+        Assert.False(row.IsGranted);
+        Assert.True(row.CanGrant);
+        Assert.Empty(viewModel.ChangeReviewRows);
+    }
+
+    [Fact]
+    public async Task RemoveReviewRow_ClearsTheStagedDecalGrant()
+    {
+        var viewModel = await LoadCatalogAsync();
+        var row = Assert.Single(viewModel.DisplayedDecals, item => item.SkillId == "SKL_CATALOG_ONLY");
+        viewModel.GrantDecal(row);
+        var review = Assert.Single(viewModel.ChangeReviewRows, change => change.Change == "Decal grant");
+
+        viewModel.RemoveReviewRow(review);
+
+        Assert.Empty(viewModel.PendingDecalGrants);
+        Assert.False(row.IsGranted);
+    }
+
+    [Fact]
+    public async Task ResetAllChanges_ClearsDecalGrants()
+    {
+        var viewModel = await LoadCatalogAsync();
+        var row = Assert.Single(viewModel.DisplayedDecals, item => item.SkillId == "SKL_CATALOG_ONLY");
+        viewModel.GrantDecal(row);
+
+        viewModel.ResetAllChanges();
+
+        Assert.Empty(viewModel.PendingDecalGrants);
+        Assert.False(row.IsGranted);
+        Assert.True(row.CanGrant);
+    }
+
+    [Fact]
+    public async Task Apply_ClearsGrantsAndPassesThemToTheSaveService()
+    {
+        var snapshot = Snapshot();
+        var service = new FakeSaveFileService(snapshot);
+        using var database = new TemporaryDatabaseFile();
+        var viewModel = new SaveEditorViewModel(
+            service,
+            decalCatalogService: new FakeDecalCatalogService());
+        await viewModel.SelectPathAsync(snapshot.Path);
+        await viewModel.ConfigureStorageCatalogAsync(database.Path);
+        var row = Assert.Single(viewModel.DisplayedDecals, item => item.SkillId == "SKL_CATALOG_ONLY");
+        row.SelectedGrantQuantity = 3;
+        viewModel.GrantDecal(row);
+
+        await viewModel.ApplyAsync();
+
+        var grant = Assert.Single(service.AppliedGrants);
+        Assert.Equal("SKL_CATALOG_ONLY", grant.SkillId);
+        Assert.Equal(3, grant.Quantity);
+        Assert.Empty(viewModel.PendingDecalGrants);
+        Assert.False(viewModel.HasPendingChanges);
     }
 
     [Fact]
@@ -253,6 +427,8 @@ public sealed class SaveEditorViewModelDecalTests
 
     private sealed class FakeSaveFileService(SaveFileSnapshot snapshot) : ISaveFileService
     {
+        public List<GrantDecalOperation> AppliedGrants { get; } = [];
+
         public Task<IReadOnlyList<string>> DiscoverAsync(string? directory = null, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<string>>([snapshot.Path]);
 
@@ -263,7 +439,25 @@ public sealed class SaveEditorViewModelDecalTests
             Task.CompletedTask;
 
         public Task<SaveApplyResult> ApplyAsync(SaveFileSnapshot snapshot, IReadOnlyCollection<StagedSaveChange> changes, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new SaveApplyResult("C:\\backup.sav", snapshot));
+            ApplyAsync(snapshot, changes, [], [], cancellationToken);
+
+        public Task<SaveApplyResult> ApplyAsync(
+            SaveFileSnapshot snapshot,
+            IReadOnlyCollection<StagedSaveChange> changes,
+            IReadOnlyCollection<StorageOperation> storageOperations,
+            CancellationToken cancellationToken = default) =>
+            ApplyAsync(snapshot, changes, storageOperations, [], cancellationToken);
+
+        public Task<SaveApplyResult> ApplyAsync(
+            SaveFileSnapshot snapshot,
+            IReadOnlyCollection<StagedSaveChange> changes,
+            IReadOnlyCollection<StorageOperation> storageOperations,
+            IReadOnlyCollection<GrantDecalOperation> decalGrants,
+            CancellationToken cancellationToken = default)
+        {
+            AppliedGrants.AddRange(decalGrants);
+            return Task.FromResult(new SaveApplyResult("C:\\backup.sav", snapshot));
+        }
     }
 
     private sealed class FakeDecalCatalogService : IDecalCatalogService
@@ -272,7 +466,8 @@ public sealed class SaveEditorViewModelDecalTests
             Task.FromResult(new DecalCatalogLoadResult(
             [
                 new("SKL_EQUIPPED_P", "Heal Up", true, 5, "HPUP"),
-                new("SKL_FREE", "Free Decal", false, 1, "MONEYUP")
+                new("SKL_FREE", "Free Decal", false, 1, "MONEYUP"),
+                new("SKL_CATALOG_ONLY", "Catalog Only", false, 2, "GUARD", "Grants a coin bonus.")
             ], []));
     }
 

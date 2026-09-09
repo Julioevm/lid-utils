@@ -297,6 +297,11 @@ public partial class MainWindow : Window
         if (sender is Button { DataContext: DecalCollectionRow row }) _viewModel.SaveEditor.UndoDecal(row);
     }
 
+    private void OnGrantDecal(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: DecalCollectionRow row }) _viewModel.SaveEditor.GrantDecal(row);
+    }
+
     private void OnClearDecalSearch(object sender, RoutedEventArgs e)
     {
         _viewModel.SaveEditor.ClearDecalSearch();

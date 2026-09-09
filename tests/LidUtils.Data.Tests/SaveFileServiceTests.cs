@@ -214,6 +214,81 @@ public sealed class SaveFileServiceTests
         Assert.False(Directory.Exists(backupDirectory));
     }
 
+    [Fact]
+    public async Task Apply_AppliesScalarEditsAndDecalGrantsTogether()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var saveDirectory = Path.Combine(temporaryDirectory.Path, "saves");
+        var backupDirectory = Path.Combine(temporaryDirectory.Path, "backups");
+        Directory.CreateDirectory(saveDirectory);
+        var savePath = Path.Combine(saveDirectory, "user.sav");
+        const string json = """
+            {"coins":10,"soul":{"skl":{"psskl":[{"sklid":"SKL_FREE","cnt":1,"updated":1596105334,"is_checked":0}]}}}
+            """;
+        var originalContainer = CreateContainer(json);
+        await File.WriteAllBytesAsync(savePath, originalContainer);
+        var service = new SaveFileService(saveDirectory, backupDirectory, () => false);
+        var snapshot = await service.LoadAsync(savePath);
+        var coins = snapshot.Entries.Single(value => value.Pointer == "/coins");
+        var change = new StagedSaveChange(coins.Pointer, coins.DisplayPath, coins.Type, coins.Value, "25");
+
+        var result = await service.ApplyAsync(
+            snapshot,
+            [change],
+            [],
+            [new GrantDecalOperation("SKL_NEW", 2)]);
+
+        Assert.Equal("25", result.UpdatedSnapshot.Entries.Single(value => value.Pointer == "/coins").Value);
+        Assert.Equal("2", result.UpdatedSnapshot.Entries.Single(value => value.Pointer == "/soul/skl/psskl/1/cnt").Value);
+        var inventory = DecalInventory.Read(result.UpdatedSnapshot.Json);
+        Assert.True(inventory.ContainsSkill("SKL_NEW"));
+        Assert.Equal(2, inventory.Owned.Single(row => row.SkillId == "SKL_NEW").Count);
+        Assert.True(inventory.ContainsSkill("SKL_FREE"));
+        Assert.Equal(originalContainer, await File.ReadAllBytesAsync(result.BackupPath));
+    }
+
+    [Fact]
+    public async Task Apply_SupportsDecalGrantOnlyWrites()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var savePath = Path.Combine(temporaryDirectory.Path, "user.sav");
+        const string json = """{"soul":{"skl":{"psskl":[]}}}""";
+        await File.WriteAllBytesAsync(savePath, CreateContainer(json));
+        var service = new SaveFileService(temporaryDirectory.Path, Path.Combine(temporaryDirectory.Path, "backups"), () => false);
+        var snapshot = await service.LoadAsync(savePath);
+
+        var result = await service.ApplyAsync(snapshot, [], [], [new GrantDecalOperation("SKL_NEW", 1)]);
+
+        Assert.Equal("1", result.UpdatedSnapshot.Entries.Single(value => value.Pointer == "/soul/skl/psskl/0/cnt").Value);
+    }
+
+    [Fact]
+    public async Task Apply_RejectsAGrantForAnAlreadyOwnedDecalWithoutChangingTheSave()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var saveDirectory = Path.Combine(temporaryDirectory.Path, "saves");
+        var backupDirectory = Path.Combine(temporaryDirectory.Path, "backups");
+        Directory.CreateDirectory(saveDirectory);
+        var savePath = Path.Combine(saveDirectory, "user.sav");
+        const string json = """
+            {"soul":{"skl":{"psskl":[{"sklid":"SKL_FREE","cnt":1,"updated":1596105334,"is_checked":0}]}}}
+            """;
+        var originalContainer = CreateContainer(json);
+        await File.WriteAllBytesAsync(savePath, originalContainer);
+        var service = new SaveFileService(saveDirectory, backupDirectory, () => false);
+        var snapshot = await service.LoadAsync(savePath);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.ApplyAsync(
+            snapshot,
+            [],
+            [],
+            [new GrantDecalOperation("SKL_FREE", 1)]));
+
+        Assert.Contains("already owns decal 'SKL_FREE'", exception.Message, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(backupDirectory));
+        Assert.Equal(originalContainer, await File.ReadAllBytesAsync(savePath));
+    }
+
     private static byte[] CreateContainer(string json)
     {
         var jsonBytes = Encoding.UTF8.GetBytes(json);

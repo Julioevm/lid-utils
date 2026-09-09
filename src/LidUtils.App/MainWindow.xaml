@@ -162,16 +162,21 @@
                                 <Grid Grid.Row="2">
                                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                                     <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                         <TextBox Text="{Binding DecalSearch, UpdateSourceTrigger=PropertyChanged}" Padding="10,7" ToolTip="Search decal name, ID, or type"/>
                                         <CheckBox Grid.Column="1" Content="Premium only" IsChecked="{Binding IsDecalPremiumOnly}" VerticalAlignment="Center" Margin="12,0,0,0"/>
-                                        <ComboBox Grid.Column="2" ItemsSource="{Binding DecalSortOptions}" SelectedItem="{Binding SelectedDecalSort}" Width="170" Margin="10,0,0,0" Padding="7" VerticalContentAlignment="Center" ToolTip="Sort decals"/>
-                                        <Button Grid.Column="3" Content="Clear filter" IsEnabled="{Binding HasDecalSearchText}" Click="OnClearDecalSearch" Margin="8,0,0,0"/>
+                                        <CheckBox Grid.Column="2" Content="Hide owned" IsChecked="{Binding IsDecalOwnedHidden}" VerticalAlignment="Center" Margin="12,0,0,0" ToolTip="Show only decals the save does not own yet"/>
+                                        <ComboBox Grid.Column="3" ItemsSource="{Binding DecalRarityFilterOptions}" SelectedItem="{Binding SelectedDecalRarityFilter}" Width="120" Margin="10,0,0,0" Padding="7" VerticalContentAlignment="Center" ToolTip="Filter by rarity"/>
+                                        <ComboBox Grid.Column="4" ItemsSource="{Binding DecalSortOptions}" SelectedItem="{Binding SelectedDecalSort}" Width="170" Margin="10,0,0,0" Padding="7" VerticalContentAlignment="Center" ToolTip="Sort decals"/>
+                                        <Button Grid.Column="5" Content="Clear filter" IsEnabled="{Binding HasDecalSearchText}" Click="OnClearDecalSearch" Margin="8,0,0,0"/>
                                     </Grid>
                                     <DataGrid Grid.Row="2" ItemsSource="{Binding DisplayedDecals}" IsReadOnly="False" IsEnabled="{Binding CanInteract}" AutoGenerateColumns="False" CanUserAddRows="False" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                                         <DataGrid.RowStyle>
                                             <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
-                                                <Style.Triggers><DataTrigger Binding="{Binding IsStaged}" Value="True"><Setter Property="Background" Value="#6B5715"/></DataTrigger></Style.Triggers>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsStaged}" Value="True"><Setter Property="Background" Value="#6B5715"/></DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsGranted}" Value="True"><Setter Property="Background" Value="#6B5715"/></DataTrigger>
+                                                </Style.Triggers>
                                             </Style>
                                         </DataGrid.RowStyle>
                                         <DataGrid.Columns>
@@ -180,12 +185,28 @@
                                             <DataGridTextColumn Header="Type" Binding="{Binding TypeLabel}" Width="130" IsReadOnly="True"/>
                                             <DataGridTextColumn Header="Premium" Binding="{Binding PremiumText}" Width="85" IsReadOnly="True" SortMemberPath="IsPremium"/>
                                             <DataGridTextColumn Header="Equipped" Binding="{Binding EquippedCount}" Width="85" IsReadOnly="True"/>
-                                            <DataGridTextColumn Header="Owned" Binding="{Binding CurrentValue}" Width="80" IsReadOnly="True" SortMemberPath="CurrentValue"/>
-                                            <DataGridTemplateColumn Header="New value" Width="200">
-                                                <DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel><TextBox Text="{Binding DraftValue, UpdateSourceTrigger=PropertyChanged}" Padding="6,2" ToolTip="{Binding QuantityLimitText}"/><TextBlock Text="{Binding ValidationError}" Foreground="#FF7770" TextWrapping="Wrap" Margin="0,3,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding ValidationError}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                            <DataGridTextColumn Header="Owned" Binding="{Binding OwnedText}" Width="70" IsReadOnly="True" SortMemberPath="CurrentValue"/>
+                                            <DataGridTemplateColumn Header="New value" Width="230">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel>
+                                                            <StackPanel>
+                                                                <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsOwned}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                                                                <TextBox Text="{Binding DraftValue, UpdateSourceTrigger=PropertyChanged}" Padding="6,2" ToolTip="{Binding QuantityLimitText}"/>
+                                                                <TextBlock Text="{Binding ValidationError}" Foreground="#FF7770" TextWrapping="Wrap" Margin="0,3,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding ValidationError}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+                                                            </StackPanel>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding CanGrant}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                                                                <ComboBox ItemsSource="{Binding GrantQuantityOptions}" SelectedItem="{Binding SelectedGrantQuantity}" Width="58" Padding="4,2" VerticalContentAlignment="Center" ToolTip="{Binding QuantityLimitText}"/>
+                                                                <Button Content="Grant" Click="OnGrantDecal" Padding="8,2" Margin="6,0,0,0" ToolTip="Append this decal to the save as a staged grant"/>
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding GrantStatus}" Foreground="#E8C36A" FontWeight="SemiBold"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsGranted}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
                                             <DataGridTemplateColumn Header="" Width="72" IsReadOnly="True">
-                                                <DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="Undo" Click="OnUndoDecalChange"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="MinWidth" Value="0"/><Setter Property="Padding" Value="7,3"/><Setter Property="Margin" Value="0"/><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsStaged}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Button.Style></Button></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                                <DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="Undo" Click="OnUndoDecalChange"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="MinWidth" Value="0"/><Setter Property="Padding" Value="7,3"/><Setter Property="Margin" Value="0"/><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsStaged}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger><DataTrigger Binding="{Binding IsGranted}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Button.Style></Button></DataTemplate></DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
                                         </DataGrid.Columns>
                                     </DataGrid>

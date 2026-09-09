@@ -20,12 +20,15 @@ public sealed class DecalCatalogServiceTests
         Assert.Equal(3, result.Definitions.Count);
         var premium = result.Definitions.Single(definition => definition.SkillId == "SKL_PREM");
         Assert.Equal("Heal Up", premium.DisplayName);
+        Assert.Equal("Restores a lot of HP.", premium.Description);
         Assert.True(premium.Premium);
         Assert.Equal(5, premium.Rarity);
         Assert.Equal("HPUP", premium.TypeLabel);
         var plain = result.Definitions.Single(definition => definition.SkillId == "SKL_PLAIN");
         Assert.False(plain.Premium);
         Assert.Equal(3, plain.Rarity);
+        Assert.Equal("Gathers Coin.", plain.Description);
+        Assert.Equal(string.Empty, result.Definitions.Single(definition => definition.SkillId == "SKL_NORARITY").Description);
         Assert.Null(result.Definitions.Single(definition => definition.SkillId == "SKL_NORARITY").Rarity);
         Assert.DoesNotContain(result.Definitions, definition => definition.SkillId == "SKL_OTHER_PLATFORM");
     }
@@ -81,16 +84,18 @@ public sealed class DecalCatalogServiceTests
             ? """
               CREATE TABLE master_text (sct TEXT, id TEXT, lang TEXT, txt TEXT);
               INSERT INTO master_text VALUES ('skl', 'heal_name', 'int', 'Heal Up');
+              INSERT INTO master_text VALUES ('skl', 'heal_desc', 'int', 'Restores a lot of HP.');
+              INSERT INTO master_text VALUES ('skl', 'plain_desc', 'int', 'Gathers Coin.');
               """
             : "";
         command.CommandText = $"""
             {textTable}
-            CREATE TABLE master_skill (id TEXT, name TEXT, type TEXT, premium INTEGER, rarity INTEGER, platform INTEGER);
+            CREATE TABLE master_skill (id TEXT, name TEXT, desc TEXT, type TEXT, premium INTEGER, rarity INTEGER, platform INTEGER);
             INSERT INTO master_skill VALUES
-                ('SKL_PREM', 'skl.heal_name', 'SKLTP_HPUP', 1, 5, 0),
-                ('SKL_PLAIN', 'skl.plain', 'SKLTP_MONEYUP', 0, 3, 0),
-                ('SKL_NORARITY', 'skl.norarity', 'SKLTP_X', 0, NULL, 0),
-                ('SKL_OTHER_PLATFORM', 'skl.other', 'SKLTP_Y', 1, 4, 1);
+                ('SKL_PREM', 'skl.heal_name', 'skl.heal_desc', 'SKLTP_HPUP', 1, 5, 0),
+                ('SKL_PLAIN', 'skl.plain', 'skl.plain_desc', 'SKLTP_MONEYUP', 0, 3, 0),
+                ('SKL_NORARITY', 'skl.norarity', NULL, 'SKLTP_X', 0, NULL, 0),
+                ('SKL_OTHER_PLATFORM', 'skl.other', NULL, 'SKLTP_Y', 1, 4, 1);
             """;
         await command.ExecuteNonQueryAsync();
     }

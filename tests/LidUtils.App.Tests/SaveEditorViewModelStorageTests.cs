@@ -266,7 +266,15 @@ public sealed class SaveEditorViewModelStorageTests
         public Task<SaveApplyResult> ApplyAsync(SaveFileSnapshot snapshot, IReadOnlyCollection<StagedSaveChange> changes, CancellationToken cancellationToken = default) =>
             ApplyAsync(snapshot, changes, [], cancellationToken);
 
-        public Task<SaveApplyResult> ApplyAsync(SaveFileSnapshot snapshot, IReadOnlyCollection<StagedSaveChange> changes, IReadOnlyCollection<StorageOperation> storageOperations, CancellationToken cancellationToken = default)
+        public Task<SaveApplyResult> ApplyAsync(SaveFileSnapshot snapshot, IReadOnlyCollection<StagedSaveChange> changes, IReadOnlyCollection<StorageOperation> storageOperations, CancellationToken cancellationToken = default) =>
+            ApplyAsync(snapshot, changes, storageOperations, [], cancellationToken);
+
+        public Task<SaveApplyResult> ApplyAsync(
+            SaveFileSnapshot snapshot,
+            IReadOnlyCollection<StagedSaveChange> changes,
+            IReadOnlyCollection<StorageOperation> storageOperations,
+            IReadOnlyCollection<GrantDecalOperation> decalGrants,
+            CancellationToken cancellationToken = default)
         {
             ReceivedScalarChanges = changes.ToArray();
             ReceivedStorageOperations = storageOperations.ToArray();

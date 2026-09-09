@@ -98,7 +98,8 @@ public sealed class ItemCatalogService : IItemCatalogService, IDecalCatalogServi
             if (!hasText) warnings.Add("Table 'master_text' is missing or incomplete; decal definition keys are shown instead of localized names.");
             var selected = new[] { "type", "premium", "rarity", "platform" }.Where(columns.Contains).ToArray();
             var requestedLanguage = string.IsNullOrWhiteSpace(language) ? "int" : language.Trim();
-            await using var command = Localized(connection, "master_skill", "id", "name", selected, requestedLanguage, hasText);
+            var hasDesc = hasText && columns.Contains("desc");
+            await using var command = Localized(connection, "master_skill", "id", "name", selected, requestedLanguage, hasText, hasDesc ? "desc" : null);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
@@ -112,7 +113,8 @@ public sealed class ItemCatalogService : IItemCatalogService, IDecalCatalogServi
                     Name(reader, 2 + selected.Length, Text(reader, 1), id),
                     Int(values, "premium") is { } premium && premium != 0,
                     rarity,
-                    TypeLabel(values)));
+                    TypeLabel(values),
+                    hasDesc ? Text(reader, 3 + selected.Length) : ""));
             }
         }
         catch (OperationCanceledException) { throw; }
@@ -206,13 +208,17 @@ public sealed class ItemCatalogService : IItemCatalogService, IDecalCatalogServi
         }
     }
 
-    private static SqliteCommand Localized(SqliteConnection c, string table, string id, string name, IReadOnlyList<string> more, string language, bool hasText)
+    private static SqliteCommand Localized(SqliteConnection c, string table, string id, string name, IReadOnlyList<string> more, string language, bool hasText, string? localizeMore = null)
     {
         var command = c.CreateCommand(); var quotedName = Quote(name); var columns = string.Concat(more.Select(x => $", {Quote(x)}"));
-        var display = hasText ? $"COALESCE((SELECT txt FROM master_text WHERE sct = substr({quotedName}, 1, instr({quotedName}, '.') - 1) AND id = substr({quotedName}, instr({quotedName}, '.') + 1) AND lang = $language LIMIT 1), (SELECT txt FROM master_text WHERE sct = substr({quotedName}, 1, instr({quotedName}, '.') - 1) AND id = substr({quotedName}, instr({quotedName}, '.') + 1) AND lang = 'int' LIMIT 1), {quotedName})" : quotedName;
-        command.CommandText = $"SELECT {Quote(id)}, {quotedName}{columns}, {display} FROM {Quote(table)} ORDER BY {Quote(id)} COLLATE NOCASE;";
+        var extraDisplay = string.IsNullOrEmpty(localizeMore) ? string.Empty : ", " + LocalDisplay(Quote(localizeMore), hasText);
+        command.CommandText = $"SELECT {Quote(id)}, {quotedName}{columns}, {LocalDisplay(quotedName, hasText)}{extraDisplay} FROM {Quote(table)} ORDER BY {Quote(id)} COLLATE NOCASE;";
         if (hasText) command.Parameters.AddWithValue("$language", language); return command;
     }
+
+    private static string LocalDisplay(string quotedColumn, bool hasText) => hasText
+        ? $"COALESCE((SELECT txt FROM master_text WHERE sct = substr({quotedColumn}, 1, instr({quotedColumn}, '.') - 1) AND id = substr({quotedColumn}, instr({quotedColumn}, '.') + 1) AND lang = $language LIMIT 1), (SELECT txt FROM master_text WHERE sct = substr({quotedColumn}, 1, instr({quotedColumn}, '.') - 1) AND id = substr({quotedColumn}, instr({quotedColumn}, '.') + 1) AND lang = 'int' LIMIT 1), {quotedColumn})"
+        : quotedColumn;
 
     private static async Task<HashSet<string>> ColumnsAsync(SqliteConnection c, string table, CancellationToken token)
     {

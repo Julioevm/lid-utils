@@ -39,6 +39,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     private readonly IDecalCatalogService? _decalCatalogService;
     private readonly SaveChangeStagingService _staging = new();
     private readonly List<StorageOperation> _storageOperations = [];
+    private readonly List<GrantDecalOperation> _decalGrants = [];
     private readonly HashSet<string> _favoritePointers = new(StringComparer.Ordinal);
     private IReadOnlyList<SaveValueRow> _allValues = [];
     private IReadOnlyList<SaveValueRow> _displayedValues = [];
@@ -51,6 +52,8 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     private DecalInventory? _decalInventory;
     private string _decalSearch = string.Empty;
     private bool _isDecalPremiumOnly;
+    private bool _isDecalOwnedHidden;
+    private string _selectedDecalRarityFilter = DecalRarityAll;
     private string _selectedDecalSort = DecalSortRarity;
     private SaveOverview _overview = SaveOverview.Empty;
     private SaveVipSection? _vip;
@@ -88,9 +91,11 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     public event Action<IReadOnlyList<string>>? FavoritePointersChanged;
 
-    public const string DecalSortRarity = "Rarity (high first)";
-    public const string DecalSortName = "Name";
-    public static readonly string[] DecalSortOptions = [DecalSortRarity, DecalSortName];
+    public static string DecalSortRarity => "Rarity (high first)";
+    public static string DecalSortName => "Name";
+    public IReadOnlyList<string> DecalSortOptions { get; } = [DecalSortRarity, DecalSortName];
+    public static string DecalRarityAll => "All rarities";
+    public IReadOnlyList<string> DecalRarityFilterOptions { get; } = [DecalRarityAll, "1★", "2★", "3★", "4★", "5★"];
 
     public IReadOnlyList<SaveValueRow> DisplayedValues
     {
@@ -142,6 +147,24 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
             ApplyDecalFilter();
         }
     }
+    public bool IsDecalOwnedHidden
+    {
+        get => _isDecalOwnedHidden;
+        set
+        {
+            if (!SetField(ref _isDecalOwnedHidden, value)) return;
+            ApplyDecalFilter();
+        }
+    }
+    public string SelectedDecalRarityFilter
+    {
+        get => _selectedDecalRarityFilter;
+        set
+        {
+            if (!SetField(ref _selectedDecalRarityFilter, value)) return;
+            ApplyDecalFilter();
+        }
+    }
 
     public string SelectedDecalSort
     {
@@ -157,7 +180,8 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     public bool HasDecalSearchText => !string.IsNullOrWhiteSpace(DecalSearch);
     public string DecalSummary => _decalInventory is null
         ? "Decals are unavailable for this save."
-        : $"{DisplayedDecals.Count:N0} of {_allDecals.Count:N0} owned decal type(s) · {_decalInventory.Equipped.Count:N0} equipped";
+        : $"{DisplayedDecals.Count:N0} of {_allDecals.Count:N0} decal type(s) shown · {_decalInventory.Owned.Count:N0} owned · {_decalInventory.Equipped.Count:N0} equipped"
+          + (_decalGrants.Count == 0 ? string.Empty : $" · {_decalGrants.Count:N0} grant(s) queued");
     public string DecalStatus => _decalInventory is null
         ? "This save snapshot has no decoded decal inventory."
         : _decalDefinitions.Count == 0
@@ -179,6 +203,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     public ObservableCollection<StagedSaveChange> PendingChanges { get; } = [];
     public ObservableCollection<StorageSlotRow> StorageSlots { get; } = [];
     public ObservableCollection<StorageOperationReviewRow> PendingStorageOperations { get; } = [];
+    public ObservableCollection<DecalGrantReviewRow> PendingDecalGrants { get; } = [];
     public ObservableCollection<SaveChangeReviewRow> ChangeReviewRows { get; } = [];
     public ObservableCollection<SaveBackupRow> SaveBackups { get; } = [];
     public ItemCatalogViewModel ItemCatalog { get; }
@@ -215,7 +240,8 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         : $"{StorageSlots.Count(slot => slot.IsOccupied):N0} / {StorageSlots.Count:N0} occupied · player {_storageInventory.PlayerUid}";
     public bool HasStorageInventory => _storageInventory is not null;
     public bool HasPendingStorageOperations => _storageOperations.Count != 0;
-    public int PendingOperationCount => PendingChanges.Count + PendingStorageOperations.Count;
+    public bool HasPendingDecalGrants => _decalGrants.Count != 0;
+    public int PendingOperationCount => PendingChanges.Count + PendingStorageOperations.Count + PendingDecalGrants.Count;
     public SaveBackupRow? SelectedSaveBackup
     {
         get => _selectedSaveBackup;
@@ -268,7 +294,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         }
     }
 
-    public bool HasPendingChanges => _staging.HasPendingChanges || HasPendingStorageOperations;
+    public bool HasPendingChanges => _staging.HasPendingChanges || HasPendingStorageOperations || HasPendingDecalGrants;
     public bool CanApply => HasPendingChanges && !IsBusy;
     public bool CanShowStagedChanges => HasPendingChanges && !IsBusy;
     public bool CanExportJson => HasSnapshot && !IsBusy;
@@ -358,6 +384,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
             Vip.IsStaged = false;
         }
         ResetStorageOperations();
+        ResetDecalGrants();
         RefreshPendingChanges();
         RefreshStorageOperations();
     }
@@ -672,7 +699,8 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Rebuilds decal rows from the loaded inventory and the current definitions.
+    /// Rebuilds decal rows from the loaded inventory and the current definitions. The full
+    /// catalog is listed: owned rows expose quantity editing and unowned rows expose granting.
     /// Staged changes survive the rebuild: rows resync their drafts from staging.
     /// </summary>
     private void RebuildDecalRows()
@@ -684,26 +712,56 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
             return;
         }
 
-        var rows = new List<DecalCollectionRow>(_decalInventory.Owned.Count);
+        var rowsBySkill = new Dictionary<string, DecalCollectionRow>(StringComparer.Ordinal);
         foreach (var owned in _decalInventory.Owned)
         {
             if (ResolveNumberEntry(owned.CountPointer) is not { } entry) continue;
             _decalDefinitions.TryGetValue(owned.SkillId, out var definition);
-            rows.Add(new DecalCollectionRow(
+            rowsBySkill[owned.SkillId] = new DecalCollectionRow(
                 entry,
                 owned.SkillId,
                 _decalInventory.EquippedCount(owned.SkillId),
                 definition,
-                StageDecalDraft));
+                StageDecalDraft,
+                isOwned: true);
         }
 
-        _allDecals = rows;
+        foreach (var definition in _decalDefinitions.Values)
+        {
+            if (rowsBySkill.ContainsKey(definition.SkillId)) continue;
+            rowsBySkill[definition.SkillId] = new DecalCollectionRow(
+                null,
+                definition.SkillId,
+                _decalInventory.EquippedCount(definition.SkillId),
+                definition,
+                StageDecalDraft,
+                isOwned: false);
+        }
+
+        _allDecals = rowsBySkill.Values.ToArray();
         foreach (var row in _allDecals) row.SyncFromStaging(_staging);
+        SyncRowsFromDecalGrants();
         ApplyDecalFilter();
+    }
+
+    private void SyncRowsFromDecalGrants()
+    {
+        foreach (var row in _allDecals) row.IsGranted = false;
+        foreach (var grant in _decalGrants)
+        {
+            var row = _allDecals.FirstOrDefault(candidate => candidate.SkillId == grant.SkillId);
+            if (row is not null && !row.IsOwned)
+            {
+                row.IsGranted = true;
+                row.SelectedGrantQuantity = (int)grant.Quantity;
+            }
+        }
     }
 
     private void LoadDecalInventory(SaveFileSnapshot snapshot)
     {
+        _decalGrants.Clear();
+        PendingDecalGrants.Clear();
         _decalInventory = null;
         if (!string.IsNullOrWhiteSpace(snapshot.Json))
         {
@@ -719,43 +777,127 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
 
         RebuildDecalRows();
         OnPropertyChanged(nameof(HasDecalInventory));
+        OnPropertyChanged(nameof(HasPendingDecalGrants));
+        OnPropertyChanged(nameof(HasPendingChanges));
+        OnPropertyChanged(nameof(PendingOperationCount));
+        OnPropertyChanged(nameof(CanApply));
         OnPropertyChanged(nameof(DecalSummary));
         OnPropertyChanged(nameof(DecalStatus));
     }
 
     public void ClearDecalSearch() => DecalSearch = string.Empty;
 
+    /// <summary>
+    /// Stages a grant for a never-owned decal. Grants are structural appends to
+    /// /soul/skl/psskl, so they are previewed against the current save JSON before staging.
+    /// </summary>
+    public void GrantDecal(DecalCollectionRow row)
+    {
+        if (IsBusy || row is not { IsOwned: false, IsGranted: false }) return;
+        if (_decalInventory?.ContainsSkill(row.SkillId) == true)
+        {
+            ItemCatalog.ShowStatus($"The save already owns '{row.SkillId}'. Reload the save to refresh the decal list.");
+            return;
+        }
+
+        if (_decalGrants.Any(grant => grant.SkillId == row.SkillId)) return;
+        var operation = new GrantDecalOperation(row.SkillId, row.SelectedGrantQuantity);
+        if (_snapshot is not null && !string.IsNullOrWhiteSpace(_snapshot.Json))
+        {
+            try
+            {
+                _ = DecalEngine.Apply(_snapshot.Json, _decalGrants.Append(operation).ToArray());
+            }
+            catch (Exception exception)
+            {
+                ItemCatalog.ShowStatus($"Decal grant was not staged: {exception.Message}");
+                return;
+            }
+        }
+
+        _decalGrants.Add(operation);
+        row.IsGranted = true;
+        RefreshDecalGrants();
+    }
+
+    public void UndoLastDecalGrant() => UndoDecalGrantAt(_decalGrants.Count - 1);
+
+    public void UndoDecalGrantAt(int index)
+    {
+        if (IsBusy || index < 0 || index >= _decalGrants.Count) return;
+        _decalGrants.RemoveAt(index);
+        SyncRowsFromDecalGrants();
+        RefreshDecalGrants();
+    }
+
+    public void ResetDecalGrants()
+    {
+        if (IsBusy || _decalGrants.Count == 0) return;
+        _decalGrants.Clear();
+        SyncRowsFromDecalGrants();
+        RefreshDecalGrants();
+    }
+
+    private void RefreshDecalGrants()
+    {
+        PendingDecalGrants.Clear();
+        foreach (var grant in _decalGrants)
+            PendingDecalGrants.Add(DecalGrantReviewRow.From(grant, ResolveDecalName(grant.SkillId)));
+        OnPropertyChanged(nameof(HasPendingDecalGrants));
+        OnPropertyChanged(nameof(HasPendingChanges));
+        OnPropertyChanged(nameof(PendingOperationCount));
+        OnPropertyChanged(nameof(CanApply));
+        OnPropertyChanged(nameof(DecalSummary));
+        RefreshChangeReviewRows();
+    }
+
+    private string ResolveDecalName(string skillId) =>
+        _decalDefinitions.TryGetValue(skillId, out var definition) ? definition.DisplayName : skillId;
+
     public void UndoDecal(DecalCollectionRow row)
     {
         if (IsBusy) return;
         ArgumentNullException.ThrowIfNull(row);
-        _staging.Reset(row.Entry.Pointer);
-        SyncValueRowFromStaging(row.Entry.Pointer);
+        if (row.Entry is not { } entry)
+        {
+            UndoDecalGrantFor(row);
+            return;
+        }
+        _staging.Reset(entry.Pointer);
+        SyncValueRowFromStaging(entry.Pointer);
         row.SetDraftWithoutStaging(row.CurrentValue);
         row.ValidationError = string.Empty;
         row.IsStaged = false;
         RefreshPendingChanges();
     }
 
+    private void UndoDecalGrantFor(DecalCollectionRow row)
+    {
+        var index = _decalGrants.FindIndex(grant => grant.SkillId == row.SkillId);
+        if (index < 0) return;
+        UndoDecalGrantAt(index);
+    }
+
     private void StageDecalDraft(DecalCollectionRow row, string? value)
     {
         ArgumentNullException.ThrowIfNull(row);
+        if (row.Entry is not { } entry) return;
         var trimmed = (value ?? string.Empty).Trim();
         if (!long.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount) ||
             amount is < 0 or > DecalInventory.MaximumQuantity)
         {
             row.ValidationError = $"Enter a whole number between 0 and {DecalInventory.MaximumQuantity}.";
-            _staging.Reset(row.Entry.Pointer);
+            _staging.Reset(entry.Pointer);
         }
         else if (amount == row.CurrentAmount)
         {
             row.ValidationError = string.Empty;
-            _staging.Reset(row.Entry.Pointer);
+            _staging.Reset(entry.Pointer);
         }
         else
         {
             row.ValidationError = string.Empty;
-            _staging.Stage(row.Entry, amount.ToString(CultureInfo.InvariantCulture));
+            _staging.Stage(entry, amount.ToString(CultureInfo.InvariantCulture));
         }
 
         SyncDecalRowFromStaging(row);
@@ -764,8 +906,9 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
 
     private void SyncDecalRowFromStaging(DecalCollectionRow row)
     {
-        SyncValueRowFromStaging(row.Entry.Pointer);
-        var change = _staging.Get(row.Entry.Pointer);
+        if (row.Entry is not { } entry) return;
+        SyncValueRowFromStaging(entry.Pointer);
+        var change = _staging.Get(entry.Pointer);
         if (change is not null)
         {
             row.SetDraftWithoutStaging(change.ProposedValue);
@@ -794,6 +937,11 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         }
 
         if (IsDecalPremiumOnly) rows = rows.Where(row => row.IsPremium);
+        if (IsDecalOwnedHidden) rows = rows.Where(row => !row.IsOwned);
+        var rarityFilter = SelectedDecalRarityFilter;
+        if (rarityFilter.Length > 0 && char.IsDigit(rarityFilter[0]) &&
+            int.TryParse(rarityFilter[..1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var rarity))
+            rows = rows.Where(row => row.Rarity == rarity);
         rows = SelectedDecalSort == DecalSortName
             ? rows.OrderBy(row => row.DisplayName, StringComparer.OrdinalIgnoreCase)
             : rows.OrderByDescending(row => row.RaritySort)
@@ -885,9 +1033,10 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         {
             StatusTitle = "Backing up and applying…";
             StatusDetails = "Rechecking the source, creating and verifying a backup, then atomically replacing the save.";
-            var result = await _saveFileService.ApplyAsync(_snapshot, _staging.PendingChanges, _storageOperations, cancellationToken);
+            var result = await _saveFileService.ApplyAsync(_snapshot, _staging.PendingChanges, _storageOperations, _decalGrants, cancellationToken);
             _staging.ResetAll();
             _storageOperations.Clear();
+            _decalGrants.Clear();
             SetSnapshot(result.UpdatedSnapshot);
             await RefreshSaveBackupsAsync(result.UpdatedSnapshot.Path, cancellationToken);
             StatusTitle = "Save updated safely";
@@ -980,6 +1129,8 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         Overview = SaveOverview.Empty;
         _staging.ResetAll();
         _storageOperations.Clear();
+        _decalGrants.Clear();
+        PendingDecalGrants.Clear();
         _storageInventory = null;
         StorageSlots.Clear();
         PendingStorageOperations.Clear();
@@ -1089,6 +1240,8 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         foreach (var change in _staging.PendingChanges) ChangeReviewRows.Add(SaveChangeReviewRow.From(change));
         for (var index = 0; index < PendingStorageOperations.Count; index++)
             ChangeReviewRows.Add(SaveChangeReviewRow.From(PendingStorageOperations[index], index));
+        for (var index = 0; index < PendingDecalGrants.Count; index++)
+            ChangeReviewRows.Add(SaveChangeReviewRow.FromDecalGrant(PendingDecalGrants[index], index));
     }
 
     public void RemoveReviewRow(SaveChangeReviewRow row)
@@ -1098,6 +1251,11 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         if (row.StorageOperationIndex is { } operationIndex)
         {
             UndoStorageOperationAt(operationIndex);
+            return;
+        }
+        if (row.DecalGrantIndex is { } grantIndex)
+        {
+            UndoDecalGrantAt(grantIndex);
             return;
         }
         if (row.Pointer is not { } pointer) return;
@@ -1392,6 +1550,12 @@ public sealed record StorageOperationReviewRow(string Operation, string Details)
     };
 }
 
+public sealed record DecalGrantReviewRow(string SkillId, string Details)
+{
+    public static DecalGrantReviewRow From(GrantDecalOperation grant, string displayName) =>
+        new(grant.SkillId, $"Grant {displayName} ×{grant.Quantity:N0}.");
+}
+
 public sealed class SaveValueRow : INotifyPropertyChanged
 {
     private readonly Action<SaveValueRow, string> _draftChanged;
@@ -1616,32 +1780,56 @@ public sealed class SaveVipSection : INotifyPropertyChanged
 
 public sealed class DecalCollectionRow : INotifyPropertyChanged
 {
-    private readonly SaveValueEntry _entry;
+    private readonly SaveValueEntry? _entry;
     private readonly Action<DecalCollectionRow, string?> _draftChanged;
     private string _draftValue;
     private string _validationError = string.Empty;
     private bool _isStaged;
+    private bool _isGranted;
+    private int _selectedGrantQuantity = 1;
 
     public DecalCollectionRow(
-        SaveValueEntry entry,
+        SaveValueEntry? entry,
         string skillId,
         int equippedCount,
         DecalDefinition? definition,
-        Action<DecalCollectionRow, string?> draftChanged)
+        Action<DecalCollectionRow, string?> draftChanged,
+        bool isOwned)
     {
         _entry = entry;
         SkillId = skillId;
         EquippedCount = equippedCount;
         Definition = definition;
+        IsOwned = isOwned;
         _draftChanged = draftChanged;
         _draftValue = CurrentValue;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
-    public SaveValueEntry Entry => _entry;
+    public SaveValueEntry? Entry => _entry;
     public string SkillId { get; }
     public int EquippedCount { get; }
+    public bool IsOwned { get; }
     public DecalDefinition? Definition { get; }
+    public IReadOnlyList<int> GrantQuantityOptions { get; } = [1, 2, 3, 4];
+    public int SelectedGrantQuantity
+    {
+        get => _selectedGrantQuantity;
+        set => SetField(ref _selectedGrantQuantity, value);
+    }
+    public bool IsGranted
+    {
+        get => _isGranted;
+        set
+        {
+            if (!SetField(ref _isGranted, value)) return;
+            OnPropertyChanged(nameof(CanGrant));
+            OnPropertyChanged(nameof(GrantStatus));
+        }
+    }
+    public bool CanGrant => !IsOwned && !IsGranted;
+    public string GrantStatus => IsGranted ? $"Queued ×{SelectedGrantQuantity}" : string.Empty;
+    public string OwnedText => IsOwned ? CurrentValue : "—";
     public string DisplayName => Definition?.DisplayName ?? SkillId;
     public string TypeLabel => string.IsNullOrEmpty(Definition?.TypeLabel) ? "Unknown" : Definition!.TypeLabel;
     public bool IsPremium => Definition?.Premium ?? false;
@@ -1652,14 +1840,30 @@ public sealed class DecalCollectionRow : INotifyPropertyChanged
         ? new string('★', Math.Min(rarity, 5))
         : "?";
     public long CurrentAmount =>
-        long.TryParse(_entry.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount) ? amount : 0;
+        _entry is not null &&
+        long.TryParse(_entry.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount)
+            ? amount
+            : 0;
     public string CurrentValue => CurrentAmount.ToString(CultureInfo.InvariantCulture);
-    public string QuantityLimitText => $"Owned quantity: 0 to {DecalInventory.MaximumQuantity}. Owned and equipped decals are tracked separately; equipping is not changed here.";
-    public string DetailsToolTip => string.Join(Environment.NewLine,
-        $"JSON path: {_entry.Pointer}",
-        $"Decal ID: {SkillId}",
-        $"Equipped copies: {EquippedCount:N0}",
-        QuantityLimitText);
+    public string QuantityLimitText => IsOwned
+        ? $"Owned quantity: 0 to {DecalInventory.MaximumQuantity}. Owned and equipped decals are tracked separately; equipping is not changed here."
+        : $"Not owned. Granting appends this decal to the save with the selected quantity (1–{DecalInventory.MaximumQuantity}).";
+    public string DescriptionText => string.IsNullOrWhiteSpace(Definition?.Description) ? string.Empty : Definition!.Description;
+    public string DetailsToolTip
+    {
+        get
+        {
+            var lines = new List<string>
+            {
+                IsOwned ? $"JSON path: {_entry!.Pointer}" : "Not owned by this save yet",
+                $"Decal ID: {SkillId}"
+            };
+            if (DescriptionText.Length > 0) lines.Add(DescriptionText);
+            lines.Add($"Equipped copies: {EquippedCount:N0}");
+            lines.Add(QuantityLimitText);
+            return string.Join(Environment.NewLine, lines);
+        }
+    }
     public string DraftValue
     {
         get => _draftValue;
@@ -1674,6 +1878,7 @@ public sealed class DecalCollectionRow : INotifyPropertyChanged
 
     public void SyncFromStaging(SaveChangeStagingService staging)
     {
+        if (_entry is null) return;
         var change = staging.Get(_entry.Pointer);
         if (change is not null)
         {
@@ -1691,11 +1896,14 @@ public sealed class DecalCollectionRow : INotifyPropertyChanged
 
     public void SetDraftWithoutStaging(string value) => SetField(ref _draftValue, value);
 
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value)) return false;
         field = value;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        OnPropertyChanged(propertyName);
         return true;
     }
 }

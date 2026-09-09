@@ -123,6 +123,24 @@ public interface ISaveFileService
     }
 
     /// <summary>
+    /// Applies scalar, account-storage, and decal-grant edits as one verified save write.
+    /// The default keeps older service implementations usable without decal support.
+    /// </summary>
+    Task<SaveApplyResult> ApplyAsync(
+        SaveFileSnapshot snapshot,
+        IReadOnlyCollection<StagedSaveChange> changes,
+        IReadOnlyCollection<StorageOperation> storageOperations,
+        IReadOnlyCollection<GrantDecalOperation> decalGrants,
+        CancellationToken cancellationToken = default)
+    {
+        if (storageOperations.Count > 0)
+            throw new NotSupportedException("This save service does not support account storage edits.");
+        if (decalGrants.Count > 0)
+            throw new NotSupportedException("This save service does not support decal grants.");
+        return ApplyAsync(snapshot, changes, cancellationToken);
+    }
+
+    /// <summary>
     /// Lists only verified backups that were recorded for the supplied save.
     /// The default keeps older read-only test and extension implementations usable.
     /// </summary>

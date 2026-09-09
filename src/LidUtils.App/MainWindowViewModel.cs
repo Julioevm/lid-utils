@@ -566,8 +566,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         else
         {
             await ItemCatalog.LoadAsync(path, cancellationToken);
-            await SaveEditor.ConfigureStorageCatalogAsync(result.Metadata.Path);
         }
+
+        // Always run: it also loads the decal definitions used by the Decals tab.
+        await SaveEditor.ConfigureStorageCatalogAsync(result.Metadata.Path);
         StatusTitle = "Database ready";
         StatusDetails = "Browse settings or stage changes. Nothing is written until Apply is confirmed and a verified backup is ready.";
         await RefreshDatabaseBackupsAsync(path, result.Metadata.SchemaSha256, cancellationToken);

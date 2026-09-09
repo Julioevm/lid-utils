@@ -10,7 +10,8 @@ public sealed record DecalDefinition(
     string DisplayName,
     bool Premium,
     int? Rarity,
-    string TypeLabel);
+    string TypeLabel,
+    string Description = "");
 
 public sealed record DecalCatalogLoadResult(
     IReadOnlyList<DecalDefinition> Definitions,
@@ -65,6 +66,14 @@ public sealed record DecalInventory(
         foreach (var entry in Equipped)
             if (string.Equals(entry.SkillId, skillId, StringComparison.Ordinal)) count++;
         return count;
+    }
+
+    public bool ContainsSkill(string skillId)
+    {
+        ArgumentNullException.ThrowIfNull(skillId);
+        foreach (var row in Owned)
+            if (string.Equals(row.SkillId, skillId, StringComparison.Ordinal)) return true;
+        return false;
     }
 
     public static DecalInventory Read(string json)
@@ -161,5 +170,97 @@ public sealed record DecalInventory(
             return true;
         result = default;
         return false;
+    }
+}
+
+/// <summary>
+/// Grants ownership of a never-owned decal by appending a row to /soul/skl/psskl.
+/// Grants only append, so they never reindex existing rows and can be applied in the
+/// same operation as scalar edits.
+/// </summary>
+public sealed record GrantDecalOperation(string SkillId, long Quantity);
+
+/// <summary>Applies decal grant operations to decoded save JSON.</summary>
+public static class DecalEngine
+{
+    /// <summary>Appends one owned decal row per grant. Returns the updated JSON.</summary>
+    public static string Apply(string json, IReadOnlyCollection<GrantDecalOperation> grants)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(json);
+        ArgumentNullException.ThrowIfNull(grants);
+        if (grants.Count == 0) return json;
+
+        JsonObject root;
+        try
+        {
+            root = JsonNode.Parse(json)?.AsObject()
+                ?? throw new InvalidOperationException("The save JSON root must be an object.");
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidOperationException("The decoded save JSON is invalid.", exception);
+        }
+
+        if (root["soul"] is not JsonObject soul)
+        {
+            if (root["soul"] is not null)
+                throw new InvalidOperationException("Expected /soul to be an object.");
+            soul = [];
+            root["soul"] = soul;
+        }
+
+        if (soul["skl"] is not JsonObject skill)
+        {
+            if (soul["skl"] is not null)
+                throw new InvalidOperationException("Expected /soul/skl to be an object.");
+            skill = [];
+            soul["skl"] = skill;
+        }
+
+        JsonArray rows;
+        switch (skill["psskl"])
+        {
+            case JsonArray array:
+                rows = array;
+                break;
+            case null:
+            case JsonObject { Count: 0 }:
+                // {} is a harmless placeholder some saves use instead of an empty array.
+                rows = [];
+                skill["psskl"] = rows;
+                break;
+            default:
+                throw new InvalidOperationException("Expected /soul/skl/psskl to be an array.");
+        }
+
+        var ownedSkillIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var row in rows)
+            if (row is JsonObject owned && owned["sklid"] is JsonValue value &&
+                value.TryGetValue<string>(out var skillId))
+                ownedSkillIds.Add(skillId);
+
+        foreach (var grant in grants)
+            if (!ownedSkillIds.Add(grant.SkillId))
+                throw new InvalidOperationException(
+                    $"The save already owns decal '{grant.SkillId}'. Undo the staged grant instead.");
+
+        var updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        foreach (var grant in grants)
+        {
+            if (string.IsNullOrWhiteSpace(grant.SkillId))
+                throw new InvalidOperationException("A decal grant has no decal ID.");
+            if (grant.Quantity < 1 || grant.Quantity > DecalInventory.MaximumQuantity)
+                throw new InvalidOperationException(
+                    $"Grant quantity for '{grant.SkillId}' must be between 1 and {DecalInventory.MaximumQuantity}.");
+            rows.Add(new JsonObject
+            {
+                ["sklid"] = grant.SkillId,
+                ["cnt"] = grant.Quantity,
+                ["updated"] = updated,
+                ["is_checked"] = 0
+            });
+        }
+
+        return root.ToJsonString();
     }
 }

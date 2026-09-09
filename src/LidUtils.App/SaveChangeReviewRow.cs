@@ -8,7 +8,8 @@ public sealed record SaveChangeReviewRow(
     string OriginalValue,
     string ProposedValue,
     string? Pointer = null,
-    int? StorageOperationIndex = null)
+    int? StorageOperationIndex = null,
+    int? DecalGrantIndex = null)
 {
     public static SaveChangeReviewRow From(StagedSaveChange change) => new(
         "Scalar value",
@@ -23,4 +24,11 @@ public sealed record SaveChangeReviewRow(
         "—",
         operation.Details,
         StorageOperationIndex: operationIndex);
+
+    public static SaveChangeReviewRow FromDecalGrant(DecalGrantReviewRow grant, int grantIndex) => new(
+        "Decal grant",
+        grant.SkillId,
+        "—",
+        grant.Details,
+        DecalGrantIndex: grantIndex);
 }

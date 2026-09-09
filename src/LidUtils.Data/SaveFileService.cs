@@ -76,11 +76,20 @@ public sealed class SaveFileService : ISaveFileService
         IReadOnlyCollection<StagedSaveChange> changes,
         IReadOnlyCollection<StorageOperation> storageOperations,
         CancellationToken cancellationToken = default)
+        => await ApplyAsync(snapshot, changes, storageOperations, [], cancellationToken);
+
+    public async Task<SaveApplyResult> ApplyAsync(
+        SaveFileSnapshot snapshot,
+        IReadOnlyCollection<StagedSaveChange> changes,
+        IReadOnlyCollection<StorageOperation> storageOperations,
+        IReadOnlyCollection<GrantDecalOperation> decalGrants,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(changes);
         ArgumentNullException.ThrowIfNull(storageOperations);
-        if (changes.Count == 0 && storageOperations.Count == 0)
+        ArgumentNullException.ThrowIfNull(decalGrants);
+        if (changes.Count == 0 && storageOperations.Count == 0 && decalGrants.Count == 0)
         {
             throw new InvalidOperationException("There are no staged save or storage changes to apply.");
         }
@@ -123,9 +132,17 @@ public sealed class SaveFileService : ISaveFileService
         }
 
         var scalarEditedJson = ApplyReplacements(container.JsonUtf8, replacements);
-        var editedJson = storageOperations.Count == 0
-            ? scalarEditedJson
-            : Encoding.UTF8.GetBytes(StorageEngine.Apply(Encoding.UTF8.GetString(scalarEditedJson), storageOperations));
+        var editedJson = Encoding.UTF8.GetBytes(storageOperations.Count == 0
+            ? Encoding.UTF8.GetString(scalarEditedJson)
+            : StorageEngine.Apply(Encoding.UTF8.GetString(scalarEditedJson), storageOperations));
+        if (decalGrants.Count > 0)
+        {
+            // Grants append to /soul/skl/psskl and never reindex existing rows, so they are
+            // safe to combine with scalar edits in one verified write.
+            editedJson = Encoding.UTF8.GetBytes(DecalEngine.Apply(
+                Encoding.UTF8.GetString(editedJson),
+                decalGrants));
+        }
         var editedContainer = SaveFileCodec.Encode(container, editedJson);
 
         // Prove the complete candidate can be decoded and contains every proposed value before touching the live save.
