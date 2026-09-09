@@ -51,7 +51,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         IDatabaseMaintenanceService databaseMaintenance,
         SettingsCatalog catalog,
         SaveEditorViewModel saveEditor,
-        IItemCatalogService? itemCatalogService = null)
+        IItemCatalogService? itemCatalogService = null,
+        IMapDataService? mapDataService = null)
     {
         _discoveryService = discoveryService;
         _validator = validator;
@@ -62,6 +63,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _itemCatalogService = itemCatalogService;
         SaveEditor = saveEditor;
         ItemCatalog = new ItemCatalogViewModel(itemCatalogService);
+        Map = new MapViewModel(mapDataService);
         SaveEditor.FavoritePointersChanged += SaveFavoriteSavePointers;
         SettingsView = CollectionViewSource.GetDefaultView(Settings);
         SettingsView.Filter = FilterSetting;
@@ -71,6 +73,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     public SaveEditorViewModel SaveEditor { get; }
     public ItemCatalogViewModel ItemCatalog { get; }
+    public MapViewModel Map { get; }
     public ObservableCollection<DatabaseSettingRow> Settings { get; } = [];
     public ICollectionView SettingsView { get; }
     public ObservableCollection<string> Categories { get; } = ["All categories"];
@@ -570,6 +573,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
         // Always run: it also loads the decal definitions used by the Decals tab.
         await SaveEditor.ConfigureStorageCatalogAsync(result.Metadata.Path);
+        // The tower map is a separate read-only load; the map keeps its own status messages.
+        await Map.LoadAsync(result.Metadata.Path, cancellationToken);
         StatusTitle = "Database ready";
         StatusDetails = "Browse settings or stage changes. Nothing is written until Apply is confirmed and a verified backup is ready.";
         await RefreshDatabaseBackupsAsync(path, result.Metadata.SchemaSha256, cancellationToken);
@@ -625,6 +630,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         MetadataDetails = "No validated database loaded.";
         ItemCatalog.Reset();
         SaveEditor.ItemCatalog.Reset();
+        Map.Reset();
         OnPropertyChanged(nameof(HasPendingChanges));
         OnPropertyChanged(nameof(CanApplyDatabaseChanges));
         OnPropertyChanged(nameof(CanRestoreDatabaseBackup));

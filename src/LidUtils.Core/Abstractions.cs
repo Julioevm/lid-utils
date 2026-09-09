@@ -37,6 +37,20 @@ public interface IReadOnlyDatabaseBrowser
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>Reads the tower map graph and the term calendar from masters.db without modifying it.</summary>
+public interface IMapDataService
+{
+    /// <summary>
+    /// Loads the five main rotations (4HMA, A–D) for the themed bands rendered by the map viewer.
+    /// <paramref name="nowUtc"/> seeds the active-term resolution so callers and tests stay deterministic.
+    /// </summary>
+    Task<TowerMapLoadResult> LoadAsync(
+        string databasePath,
+        string? language = null,
+        DateTimeOffset? nowUtc = null,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IDatabaseMaintenanceService
 {
     Task<DatabaseApplyResult> ApplyAsync(

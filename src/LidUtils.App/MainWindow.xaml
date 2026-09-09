@@ -311,6 +311,13 @@
                                 <app:ItemCatalogView Grid.Row="2" DataContext="{Binding ItemCatalog}" IsEnabled="{Binding DataContext.CanInteract, RelativeSource={RelativeSource AncestorType={x:Type TabControl}}}"/>
                             </Grid>
                         </TabItem>
+                        <TabItem Header="Map">
+                            <Grid Margin="12">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                                <StackPanel><TextBlock Text="Tower map" FontSize="17" FontWeight="SemiBold"/><TextBlock Text="Read-only view of the tower map per daily rotation: themed floor bands on a single vertical scale, every area node, and the allowed upward connections. Data comes from masters.db; the game does not need to be closed." Foreground="#AEB7C6" Margin="0,4,0,0" TextWrapping="Wrap"/></StackPanel>
+                                <app:MapView Grid.Row="2" Margin="0,8,0,0" DataContext="{Binding Map}"/>
+                            </Grid>
+                        </TabItem>
                         <TabItem Header="Advanced">
                             <Grid Margin="12"><Grid.ColumnDefinitions><ColumnDefinition Width="260"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                 <ListBox ItemsSource="{Binding SchemaTables}" SelectedItem="{Binding SelectedSchemaTable}" SelectionChanged="OnSchemaSelectionChanged" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="4"><TextBlock Text="{Binding Name}" FontWeight="SemiBold"/><TextBlock Text="{Binding Summary}" Foreground="#7E8999" FontSize="11"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>

@@ -48,7 +48,8 @@ public partial class App : Application
             new DatabaseMaintenanceService(validator),
             catalog,
             saveEditor,
-            itemCatalogService);
+            itemCatalogService,
+            new MapDataService());
 
         new MainWindow(viewModel).Show();
     }
