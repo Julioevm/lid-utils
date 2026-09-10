@@ -16,17 +16,9 @@ public sealed class CharacterInventoryTests
         Assert.Equal(2, inventory.Characters.Count);
         Assert.All(inventory.Characters, character => Assert.Equal(20, character.DeathBag.Count));
         Assert.Contains(inventory.Characters, character => character.Status == "In use");
-        Assert.Contains(inventory.Characters, character => character.Status == "Freezer");
-    }
-
-    [Fact]
-    public void Read_BivuacFixture_DerivesTheActiveDeadFighter()
-    {
-        var path = FindRepositoryFile("data", "bivuac.json");
-
-        var inventory = CharacterInventory.Read(File.ReadAllText(path));
-
-        Assert.Contains(inventory.Characters, character => character.Status == "Dead");
+        Assert.Contains(inventory.Characters, character =>
+            character.CharacterId == "dc4ac178-835d-47de-8590-823ce11e86b7" &&
+            character.Status == "Dead");
     }
 
     [Fact]
