@@ -1,24 +1,56 @@
 # LET IT DIE Utilities
 
-A Windows desktop utility for inspecting and safely editing Let It Die's `masters.db` and supported local save files.
+**LET IT DIE Utilities** is a Windows desktop app for exploring—and carefully editing—your local *LET IT DIE* save and game database files. Nothing is written until you review and apply the changes you have staged.
 
-## Current status
+> **Use on local files only.** Keep a separate copy of any save you care about, and test edited saves at your own risk.
 
-The app finds and validates compatible Let It Die game databases, provides a searchable browser for constants and schema data, and lets you stage and review exact setting changes. Confirmed changes are applied in one SQLite transaction only after the game is closed and a full verified backup has been created. Original-value checks, integrity verification, audit records, and automatic recovery prevent partial writes.
+## What you can do today
 
-The save editor is available now. It opens supported local `.sav` files, exposes searchable scalar values, stages edits for confirmation, and applies them through a fingerprint-checked, backup-first atomic replacement workflow while the game is closed. It can also export decoded JSON for inspection.
+### Edit a local save
 
-Account storage editing uses the installed game's item catalogue. Load a save and a compatible database, select a storage slot, then stage adding/replacing an item, clearing it, or expanding storage by ten slots. Review the preview and pending operations before applying; undo/reset does not write to the save. Existing capacity is read from the save, not reset to a fixed starting size.
+- Browse and search decoded save values; stage individual scalar-value changes and export the decoded JSON.
+- Manage account storage: add or replace supported catalogue items, clear slots, and expand capacity.
+- Browse fighters and edit supported profile fields, available XP, and allocated stats; inspect Death Bags and expand their slots.
+- Browse, filter, grant, and adjust owned decals.
+- Manage VIP status and passes.
+- Review every pending edit together, undo individual changes, and restore earlier backups.
 
-The catalogue remains browseable for definitions that cannot safely be constructed; unsupported entries explain why they cannot be added. New items use baseline templates, not custom equipment upgrades or cooked variants. Character inventories and equipped items are outside this feature's scope. Automated checks cannot establish in-game acceptance: keep a backup and test edited saves separately. See [INVENTORY_PLAN.md](INVENTORY_PLAN.md) for scope and validation details.
+### Explore the game database
 
-The database backup browser can restore snapshots for the selected database when the schema still matches. Backups and their metadata live under `%LOCALAPPDATA%\LidUtils\backups\databases`, audit records live under `%LOCALAPPDATA%\LidUtils\audit\databases`, and the global backup limit defaults to five. Catalog information remains helpful context, but every valid constant in the three supported tables can be changed.
+- Find and validate a compatible `masters.db` installation.
+- Search, favorite, and edit supported constant settings, or inspect the schema and table data in the Advanced view.
+- Browse the localized item catalogue used by the storage editor.
+- Restore compatible database backups and keep an audit trail of changes.
 
-Game Database → Map is a read-only tower-map viewer. It renders the five main daily rotations (4HMA, A–D) with the themed bands Metro F1–F10, Arcade F11–F20, Amusement F21–F30, Rooftop F31–F40 and Hazama F41–F50 on one vertical scale, showing each mounted area (base corridors and rotation-only side areas), elevator stops, and the allowed upward connections. Elevator services are drawn as colour-coded route lines, one colour per car, joining every floor the car stops at (including the Waiting Room hub of the main elevator at the base) so unlocked cars are visible even where no stairs connect the floors. Pick a rotation or press Today to jump to the one the term calendar marks as live, restrict the view to a single band, drag to pan, and click a dot or a list row to inspect an area's details, routes, keys and gates. The map zooms in and out with the +/− controls in its top-right corner or with Ctrl+scroll (the percentage button resets to 100 %), so area labels stay readable when a floor is crowded. Boss encounters are overlaid on the map: the four section bosses (Max Sharp, Colonel Jackson, Mr Crowley, Gunkanyama) get a BOSS badge on their arena floor, and paid Four Force Men rooms get an FFM badge (both also appear in the area list, with fees in the details). Roaming section-boss spawns are loaded but deliberately not badged, since they cover most floors. Routes gated behind a boss clear or trigger are drawn in the matching colour. Everything is read from masters.db without the game needing to be closed; Heaven (F51–F451) is a later iteration.
+### Use the tower map
 
-The map also overlays the community **Rotations and Resources Table V2** area information (by Oberlinx & Kaito): loose materials, stamp machines, the wandering Chokufunsha/Gyakufunsha shops, Yotsuyama Bionics and Tales magazine collectibles, trap rooms and the floor notes, all resolved for the selected rotation. The curated data ships as `settings/map-area-info.json`, regenerated offline with `tools/import_floor_data.py`; the note text is shown verbatim and credited as community data. Used by the `Loot` toggle, the area-list `Mat`/`$` columns, area tooltips and the details panel. See [docs/map_area_info_plan.md](docs/map_area_info_plan.md).
+- Explore floors 1–50 for daily rotations 4HMA and A–D.
+- See areas, upward routes, elevator stops and services, bosses, Four Force Men rooms, and boss-gated routes.
+- Filter by tower band, pan and zoom, and select an area for its details.
+- Toggle community-sourced area notes covering materials, shops, collectibles, trap rooms, and more.
 
-See [settings/CONTRIBUTING.md](settings/CONTRIBUTING.md) for the catalog format, validation rules, and contribution checklist.
+## Built around safer edits
+
+The app requires *LET IT DIE* to be closed before applying save or database changes. It stages edits in memory first, then creates and verifies a full backup, rechecks the source fingerprint, writes atomically, verifies the result, and records an audit entry. Restoring a backup also makes a fresh safety backup first.
+
+Some data is intentionally read-only. The storage editor only creates baseline templates for supported catalogue items—it does not create custom upgrades or cooked variants—and character inventory or equipped-item editing is outside the current scope.
+
+## Quick start
+
+1. Install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) on Windows.
+2. Build and launch the app:
+
+   ```powershell
+   dotnet run --project src\LidUtils.App\LidUtils.App.csproj
+   ```
+
+3. Load a supported local save from **Save Editor**, or validate `masters.db` from **Game Database**. Stage your changes, review them, then apply.
+
+## Data and credits
+
+Tower-map area information is derived from the community **Rotations and Resources Table V2** by Oberlinx & Kaito. It ships in `settings/map-area-info.json`; see [the map-data notes](docs/map_area_info_plan.md) for details.
+
+For the item catalogue format, validation rules, and contribution checklist, see [settings/CONTRIBUTING.md](settings/CONTRIBUTING.md).
 
 ## Development
 
