@@ -118,15 +118,26 @@ Add these only after controlled save pairs establish every companion mutation:
 - restore/recover a dead fighter;
 - equip and unequip decals per fighter.
 
-### Version 3 — Death Bag editing
+### Version 3 — Death Bag editing (add, replace, and clear implemented)
+
+- Add or replace a supported catalog item in a selected fighter Death Bag slot.
+  This reuses the storage catalog templates but materializes the instance as
+  player-owned (`owner` = `USER`, plus the active player `uid` on equipment) in
+  the game's normal inventory registries, applies current timestamps, and
+  normalizes the row's `site` and `arm_slot` to an unequipped state.
+- Clear a selected fighter Death Bag slot, removing its instance only when no
+  other reference exists; a slot is never emptied by orphaning a shared entity.
+- A beast instance still receives a raw `BEAST`-owned reward mushroom, matching
+  account storage.
+- Structural Death Bag edits stay in the same staged review, backup, and atomic
+  apply pipeline as storage operations and conflict with raw scalar edits under
+  the Death Bag and entity paths.
+
+Remaining Death Bag work:
 
 - Move existing entities between Storage and a selected Death Bag.
-- Clear a slot only by moving its entity to a valid container; do not orphan or
-  delete entity records.
-- Add/set items only after USER-owned materialization rules, timestamps, default
-  fields, and all reference updates are verified. Existing catalog templates are
-  locker-owned and cannot be reused unchanged.
-- Normalize `site` and `arm_slot` whenever equipped items move.
+- Verify the exact in-game companion fields for upgraded or cooked variants
+  before creating them.
 
 ## Implementation
 

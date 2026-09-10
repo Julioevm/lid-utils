@@ -128,6 +128,75 @@ public sealed class SaveEditorViewModelCharacterTests
         Assert.IsType<ExpandCharacterDeathBagOperation>(Assert.Single(service.StorageOperations));
     }
 
+    private static readonly ItemCatalogEntry Heal =
+        new("IT_HEAL", "Localized Healing Potion", ItemCatalogCategory.Item, "master_item", true);
+
+    [Fact]
+    public async Task BagItem_PickerAddsItemToSelectedSlot_AndPreviewsOnlyThatFighter()
+    {
+        var service = new RecordingService(Snapshot());
+        var viewModel = new SaveEditorViewModel(service, itemCatalogService: new CatalogService());
+        await viewModel.SelectPathAsync(service.Snapshot.Path);
+        viewModel.ItemCatalog.SetResult(new ItemCatalogLoadResult([Heal], []), "C:\\masters.db");
+        viewModel.SelectedCharacter = viewModel.DisplayedCharacters.Single(row => row.CharacterId == "active");
+        viewModel.SelectedCharacterBagSlot = viewModel.SelectedCharacter.DeathBag.Single(slot => slot.Slot == 0);
+
+        Assert.True(viewModel.CanOpenCharacterBagPicker);
+
+        viewModel.StageAddOrReplaceCharacterBagSlot(Heal);
+
+        var review = Assert.Single(viewModel.PendingStorageOperations);
+        Assert.Equal("Add or replace fighter Death Bag slot", review.Operation);
+        Assert.True(viewModel.SelectedCharacter!.DeathBag.Single(slot => slot.Slot == 0).IsOccupied);
+        Assert.Equal("Localized Healing Potion", viewModel.SelectedCharacter.DeathBag.Single(slot => slot.Slot == 0).ItemName);
+        Assert.False(viewModel.DisplayedCharacters.Single(row => row.CharacterId == "dead").DeathBag.Single(slot => slot.Slot == 0).IsOccupied);
+
+        viewModel.StageClearCharacterBagSlot();
+
+        Assert.Equal(2, viewModel.PendingStorageOperations.Count);
+        Assert.False(viewModel.SelectedCharacter.DeathBag.Single(slot => slot.Slot == 0).IsOccupied);
+
+        viewModel.UndoLastStorageOperation();
+
+        Assert.Single(viewModel.PendingStorageOperations);
+        Assert.True(viewModel.SelectedCharacter.DeathBag.Single(slot => slot.Slot == 0).IsOccupied);
+    }
+
+    [Fact]
+    public async Task BagItem_RequiresASelectedSlotAndCatalog()
+    {
+        var service = new RecordingService(Snapshot());
+        var viewModel = new SaveEditorViewModel(service, itemCatalogService: new CatalogService());
+        await viewModel.SelectPathAsync(service.Snapshot.Path);
+
+        Assert.False(viewModel.CanOpenCharacterBagPicker);
+
+        viewModel.ItemCatalog.SetResult(new ItemCatalogLoadResult([Heal], []), "C:\\masters.db");
+        viewModel.SelectedCharacterBagSlot = viewModel.SelectedCharacter!.DeathBag.Single(slot => slot.Slot == 0);
+
+        Assert.True(viewModel.CanOpenCharacterBagPicker);
+        Assert.False(viewModel.CanClearCharacterBagSlot);
+    }
+
+    [Fact]
+    public async Task BagItem_ApplySendsTheDeathBagOperation()
+    {
+        var service = new RecordingService(Snapshot());
+        var viewModel = new SaveEditorViewModel(service, itemCatalogService: new CatalogService());
+        await viewModel.SelectPathAsync(service.Snapshot.Path);
+        viewModel.ItemCatalog.SetResult(new ItemCatalogLoadResult([Heal], []), "C:\\masters.db");
+        viewModel.SelectedCharacter = viewModel.DisplayedCharacters.Single(row => row.CharacterId == "active");
+        viewModel.SelectedCharacterBagSlot = viewModel.SelectedCharacter.DeathBag.Single(slot => slot.Slot == 0);
+        viewModel.StageAddOrReplaceCharacterBagSlot(Heal);
+
+        await viewModel.ApplyAsync();
+
+        var operation = Assert.IsType<SetCharacterDeathBagSlotOperation>(Assert.Single(service.StorageOperations));
+        Assert.Equal("active", operation.CharacterId);
+        Assert.Equal(0, operation.Slot);
+        Assert.Equal("IT_HEAL", operation.Template.DefinitionId);
+    }
+
     private static SaveFileSnapshot Snapshot()
     {
         const string json = """
@@ -165,5 +234,17 @@ public sealed class SaveEditorViewModelCharacterTests
             StorageOperations = storageOperations.ToArray();
             return Task.FromResult(new SaveApplyResult("C:\\backup.sav", Snapshot));
         }
+    }
+
+    private sealed class CatalogService : IItemCatalogService
+    {
+        public Task<ItemCatalogLoadResult> LoadAsync(string databasePath, string? language = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ItemCatalogLoadResult([Heal], []));
+
+        public ItemCatalogTemplateResult CreateTemplate(ItemCatalogEntry entry) =>
+            entry == Heal
+                ? new ItemCatalogTemplateResult(
+                    new StorageItemTemplate(3, entry.DefinitionId, entry.DisplayName, "{\"itemid\":\"IT_HEAL\",\"gettime\":0}"), null)
+                : new ItemCatalogTemplateResult(null, "Unsupported item.");
     }
 }

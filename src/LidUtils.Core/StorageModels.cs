@@ -41,6 +41,20 @@ public sealed record ExpandCharacterDeathBagOperation(string CharacterId, int Sl
     public static readonly IReadOnlyList<int> AllowedSlotCounts = [1, 5, 10];
 }
 
+/// <summary>
+/// Creates a player-owned item instance and places it in an existing Death Bag slot of one
+/// fighter. The materialized entity belongs to the active player, unlike account-storage items
+/// which are locker-owned, so an occupied slot is replaced only when its old entity is not
+/// referenced anywhere else.
+/// </summary>
+public sealed record SetCharacterDeathBagSlotOperation(string CharacterId, int Slot, StorageItemTemplate Template) : StorageOperation;
+
+/// <summary>
+/// Empties an existing fighter Death Bag slot, removing its player-owned instance only when it
+/// has no other reference.
+/// </summary>
+public sealed record ClearCharacterDeathBagSlotOperation(string CharacterId, int Slot) : StorageOperation;
+
 public sealed record StorageSlot(
     int Slot,
     int Type,

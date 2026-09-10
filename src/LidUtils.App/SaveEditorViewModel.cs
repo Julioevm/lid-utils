@@ -56,6 +56,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     private IReadOnlyList<CharacterRow> _allCharacters = [];
     private IReadOnlyList<CharacterRow> _displayedCharacters = [];
     private CharacterRow? _selectedCharacter;
+    private CharacterBagSlotRow? _selectedCharacterBagSlot;
     private string _characterSearch = string.Empty;
     private string _selectedCharacterStatus = "All statuses";
     private string _selectedCharacterSort = "Roster order";
@@ -189,8 +190,20 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         set
         {
             if (!SetField(ref _selectedCharacter, value)) return;
+            SelectedCharacterBagSlot = null;
             OnPropertyChanged(nameof(HasSelectedCharacter));
             OnPropertyChanged(nameof(CanExpandCharacterBag));
+            NotifyCharacterBagCommandStateChanged();
+        }
+    }
+
+    public CharacterBagSlotRow? SelectedCharacterBagSlot
+    {
+        get => _selectedCharacterBagSlot;
+        set
+        {
+            if (!SetField(ref _selectedCharacterBagSlot, value)) return;
+            NotifyCharacterBagCommandStateChanged();
         }
     }
 
@@ -210,6 +223,10 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     public bool HasCharacterSearch => !string.IsNullOrWhiteSpace(CharacterSearch);
     public bool CanExpandCharacterBag => CanInteract && SelectedCharacter is not null &&
         SelectedCharacter.BagCapacity + SelectedCharacterBagExpansion <= ExpandCharacterDeathBagOperation.MaximumRowsPerBag;
+    public bool CanOpenCharacterBagPicker => CanInteract && HasCharacterInventory &&
+        SelectedCharacter is not null && SelectedCharacterBagSlot is not null && ItemCatalog.HasCatalog;
+    public bool CanClearCharacterBagSlot => CanInteract && HasCharacterInventory &&
+        SelectedCharacter is not null && SelectedCharacterBagSlot is { IsOccupied: true };
     public string CharacterBagExpansionButtonText => $"Add {SelectedCharacterBagExpansion:N0} slots";
     public string CharacterBagLimitText =>
         $"Manual limit: {ExpandCharacterDeathBagOperation.MaximumRowsPerBag} slots · VIP may add 10 more, up to {ExpandDeathBagsOperation.MaximumRowsPerBag}.";
@@ -424,6 +441,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(CanExportJson));
             OnPropertyChanged(nameof(CanRestoreSaveBackup));
             OnPropertyChanged(nameof(CanExpandCharacterBag));
+            NotifyCharacterBagCommandStateChanged();
             NotifyStorageCommandStateChanged();
         }
     }
@@ -908,6 +926,35 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
             SelectedCharacterBagExpansion));
     }
 
+    /// <summary>
+    /// Materializes a catalog item into the selected fighter's Death Bag slot. Like the storage
+    /// editor, the item instance is created from a validated catalog template; the difference is
+    /// that the entity is owned by the active player rather than the account locker.
+    /// </summary>
+    public void StageAddOrReplaceCharacterBagSlot(ItemCatalogEntry entry)
+    {
+        if (IsBusy || SelectedCharacter is null || SelectedCharacterBagSlot is null) return;
+        var template = ItemCatalog.Result is null ? null : CreateTemplate(entry);
+        if (template?.Template is null)
+        {
+            ItemCatalog.ShowStatus(template?.Error ?? "The selected item cannot be constructed safely.");
+            return;
+        }
+
+        StageStorageOperation(new SetCharacterDeathBagSlotOperation(
+            SelectedCharacter.CharacterId,
+            SelectedCharacterBagSlot.Slot,
+            template.Template));
+    }
+
+    public void StageClearCharacterBagSlot()
+    {
+        if (IsBusy || SelectedCharacter is null || SelectedCharacterBagSlot is null) return;
+        StageStorageOperation(new ClearCharacterDeathBagSlotOperation(
+            SelectedCharacter.CharacterId,
+            SelectedCharacterBagSlot.Slot));
+    }
+
     private void StageCharacterName(CharacterRow row, string value)
     {
         if (value.Length > CharacterRow.MaximumNameLength || value.Any(char.IsControl))
@@ -1077,6 +1124,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     private void RebuildCharacterRows(string? preferredCharacterId = null)
     {
         preferredCharacterId ??= SelectedCharacter?.CharacterId;
+        var preferredBagSlot = SelectedCharacterBagSlot?.Slot;
         if (_characterInventory is null)
         {
             _allCharacters = [];
@@ -1099,12 +1147,22 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         foreach (var row in _allCharacters)
         {
             row.SyncFromStaging(_staging);
-            if (_storageOperations.OfType<ExpandCharacterDeathBagOperation>()
-                .Any(operation => operation.CharacterId == row.CharacterId))
-                row.IsStaged = true;
+            if (HasStagedCharacterBagOperation(row.CharacterId)) row.IsStaged = true;
         }
         ApplyCharacterFilter(preferredCharacterId);
+        SelectedCharacterBagSlot = preferredBagSlot is null
+            ? null
+            : SelectedCharacter?.DeathBag.FirstOrDefault(slot => slot.Slot == preferredBagSlot);
     }
+
+    private bool HasStagedCharacterBagOperation(string characterId) =>
+        _storageOperations.Any(operation => operation switch
+        {
+            ExpandCharacterDeathBagOperation expand => expand.CharacterId == characterId,
+            SetCharacterDeathBagSlotOperation set => set.CharacterId == characterId,
+            ClearCharacterDeathBagSlotOperation clear => clear.CharacterId == characterId,
+            _ => false
+        });
 
     private int? ResolveCharacterCap(CharacterRecord character)
     {
@@ -1562,9 +1620,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         foreach (var character in _allCharacters)
         {
             character.SyncFromStaging(_staging);
-            if (_storageOperations.OfType<ExpandCharacterDeathBagOperation>()
-                .Any(operation => operation.CharacterId == character.CharacterId))
-                character.IsStaged = true;
+            if (HasStagedCharacterBagOperation(character.CharacterId)) character.IsStaged = true;
         }
         if (Vip is not null)
         {
@@ -1742,6 +1798,13 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CanClearStorageSlot));
         OnPropertyChanged(nameof(CanExpandStorage));
         OnPropertyChanged(nameof(CanUndoStorageOperation));
+        NotifyCharacterBagCommandStateChanged();
+    }
+
+    private void NotifyCharacterBagCommandStateChanged()
+    {
+        OnPropertyChanged(nameof(CanOpenCharacterBagPicker));
+        OnPropertyChanged(nameof(CanClearCharacterBagSlot));
     }
 
     private IReadOnlyList<SaveNumericFieldRow> BuildFieldRows()
@@ -2182,6 +2245,8 @@ public sealed record StorageOperationReviewRow(string Operation, string Details)
         ExpandStorageOperation expand => new("Expand storage", $"Add {expand.SlotCount:N0} empty storage slots."),
         ExpandDeathBagsOperation expandBags => new("Expand Death Bags", $"Add {expandBags.RowsPerBag:N0} empty Death Bag slots to each owned fighter."),
         ExpandCharacterDeathBagOperation expandCharacterBag => new("Expand fighter Death Bag", $"Add {expandCharacterBag.SlotCount:N0} empty slots to fighter {expandCharacterBag.CharacterId}."),
+        SetCharacterDeathBagSlotOperation setBag => new("Add or replace fighter Death Bag slot", $"Fighter {setBag.CharacterId} slot {setBag.Slot:N0}: {setBag.Template.Name} ({setBag.Template.DefinitionId})."),
+        ClearCharacterDeathBagSlotOperation clearBag => new("Clear fighter Death Bag slot", $"Remove the item reference from fighter {clearBag.CharacterId}'s Death Bag slot {clearBag.Slot:N0}."),
         ClearStorageSlotOperation clear => new("Clear storage slot", $"Remove the item reference from slot {clear.Slot:N0}."),
         SetStorageSlotOperation set => new("Add or replace storage slot", $"Slot {set.Slot:N0}: {set.Template.Name} ({set.Template.DefinitionId})."),
         _ => new("Storage operation", operation.ToString() ?? "Pending storage edit")

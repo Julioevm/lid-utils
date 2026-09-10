@@ -363,6 +363,127 @@ public sealed class StorageEngineTests
             JsonNode.Parse(edited)!["soul"]!["deathbag"]!["424242"]!["77"]!.AsArray().Count);
     }
 
+    [Fact]
+    public void Apply_SetsPlayerOwnedItemInDeathBagSlot_AndJoinsItIntoTheFighterBag()
+    {
+        var template = new StorageItemTemplate(3, "IT_HEAL", "Heal", "{\"itemid\":\"IT_HEAL\",\"gettime\":0}");
+
+        var edited = StorageEngine.Apply(CharacterSaveJson(), [new SetCharacterDeathBagSlotOperation("fighter", 1, template)]);
+        var root = JsonNode.Parse(edited)!.AsObject();
+        var row = root["soul"]!["deathbag"]!["424242"]!["fighter"]!.AsArray()[1]!.AsObject();
+        var eid = row["eid"]!.GetValue<string>();
+
+        Assert.True(Guid.TryParse(eid, out _));
+        Assert.Equal(3, row["type"]!.GetValue<int>());
+        Assert.Equal(-1, row["arm_slot"]!.GetValue<int>());
+
+        var item = root["item"]!["items"]!.AsArray().Single()!.AsObject();
+        Assert.Equal(eid, item["eid"]!.GetValue<string>());
+        Assert.Equal("USER", item["owner"]!.GetValue<string>());
+        Assert.True(item["gettime"]!.GetValue<long>() > 0);
+        Assert.False(item.ContainsKey("uid"));
+
+        var slot = CharacterInventory.Read(edited).Characters
+            .Single(character => character.CharacterId == "fighter").DeathBag.Single(entry => entry.Slot == 1);
+        Assert.True(slot.IsOccupied);
+        Assert.Equal("IT_HEAL", slot.DefinitionId);
+        Assert.DoesNotContain(slot.Warnings, warning => warning.Contains("not USER", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Apply_ReplacesOccupiedDeathBagSlot_RemovingTheOldPlayerEntity()
+    {
+        var template = new StorageItemTemplate(3, "IT_HEAL", "Heal", "{\"itemid\":\"IT_HEAL\"}");
+
+        var edited = StorageEngine.Apply(CharacterSaveJson(), [new SetCharacterDeathBagSlotOperation("fighter", 0, template)]);
+        var root = JsonNode.Parse(edited)!.AsObject();
+
+        Assert.DoesNotContain(root["part"]!["pts"]!["424242"]!.AsArray(),
+            value => value!["eid"]!.GetValue<string>() == BagPartId);
+        Assert.Single(root["item"]!["items"]!.AsArray());
+    }
+
+    [Fact]
+    public void Apply_AddsPlayerOwnedBeastToDeathBag_WithARawRewardMushroom()
+    {
+        var template = new StorageItemTemplate(2, "BST_DOG", "Dog",
+            "{\"bstid\":\"BST_DOG\",\"rwdemsrid\":\"\",\"gettime\":0}",
+            "{\"msrid\":\"MSR_REWARD\",\"gettime\":0}");
+
+        var edited = StorageEngine.Apply(CharacterSaveJson(), [new SetCharacterDeathBagSlotOperation("fighter", 1, template)]);
+        var root = JsonNode.Parse(edited)!.AsObject();
+        var beast = root["beast"]!["bsts"]!.AsArray().Single()!.AsObject();
+        var mushroom = root["mushroom"]!["msrs"]!.AsArray().Single()!.AsObject();
+
+        Assert.Equal("USER", beast["owner"]!.GetValue<string>());
+        Assert.Equal("BEAST", mushroom["owner"]!.GetValue<string>());
+        Assert.Equal(mushroom["eid"]!.GetValue<string>(), beast["rwdemsrid"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void Apply_ClearsDeathBagSlot_AndRemovesThePlayerEntity()
+    {
+        var edited = StorageEngine.Apply(CharacterSaveJson(), [new ClearCharacterDeathBagSlotOperation("fighter", 0)]);
+        var root = JsonNode.Parse(edited)!.AsObject();
+        var row = root["soul"]!["deathbag"]!["424242"]!["fighter"]!.AsArray()[0]!.AsObject();
+
+        Assert.Equal(-1, row["type"]!.GetValue<int>());
+        Assert.Equal(string.Empty, row["eid"]!.GetValue<string>());
+        Assert.Empty(root["part"]!["pts"]!["424242"]!.AsArray());
+    }
+
+    [Fact]
+    public void Apply_RejectsDeathBagEditsForMissingTargets()
+    {
+        var template = new StorageItemTemplate(3, "IT_HEAL", "Heal", "{\"itemid\":\"IT_HEAL\"}");
+
+        Assert.Contains("slot 9", Assert.Throws<InvalidOperationException>(
+            () => StorageEngine.Apply(CharacterSaveJson(), [new SetCharacterDeathBagSlotOperation("fighter", 9, template)])).Message);
+        Assert.Contains("does not have a Death Bag", Assert.Throws<InvalidOperationException>(
+            () => StorageEngine.Apply(CharacterSaveJson(), [new SetCharacterDeathBagSlotOperation("ghost", 0, template)])).Message);
+    }
+
+    [Fact]
+    public void Apply_RejectsReplacingADeathBagEntityOwnedByAnotherOwner()
+    {
+        var root = JsonNode.Parse(CharacterSaveJson())!.AsObject();
+        root["part"]!["pts"]!["424242"]![0]!["owner"] = "COIN_LOCKER";
+        var template = new StorageItemTemplate(3, "IT_HEAL", "Heal", "{\"itemid\":\"IT_HEAL\"}");
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => StorageEngine.Apply(root.ToJsonString(), [new SetCharacterDeathBagSlotOperation("fighter", 0, template)]));
+
+        Assert.Contains("not owned by the active player", exception.Message);
+    }
+
+    private static string CharacterSaveJson() => $$"""
+        {
+          "user": { "uid": 424242 },
+          "soul": {
+            "uid": 424242,
+            "cl": [ { "slot": 0, "type": -1, "eid": "" } ],
+            "chr": {
+              "chrs": { "424242": [
+                { "cid": "fighter", "name": "Fighter", "state": "FREE", "type": "BAL", "body": "BODY_M",
+                  "grade": 1, "limit_break": 0, "hp": 10, "gain_exp": 0, "money": 0, "spirit": 0, "bloodnium": 0 }
+              ] },
+              "slots": { "424242": [ { "slot": 0, "cid": "fighter" } ] }
+            },
+            "deathbag": { "424242": { "fighter": [
+              { "uid": 424242, "cid": "fighter", "slot": 0, "type": 0, "eid": "{{BagPartId}}", "site": "", "arm_slot": 0 },
+              { "uid": 424242, "cid": "fighter", "slot": 1, "type": -1, "eid": "", "site": "", "arm_slot": -1 }
+            ] } }
+          },
+          "part": { "pts": { "424242": [
+            { "eid": "{{BagPartId}}", "ptid": "P_BAG", "uid": 424242, "owner": "USER" }
+          ] } },
+          "item": { "items": [] },
+          "mushroom": { "msrs": [] },
+          "beast": { "bsts": [] },
+          "diedchara": { "dchrs": { "424242": [] } }
+        }
+        """;
+
     private static string SaveJson() => $$"""
         {
           "user": { "uid": 424242 },

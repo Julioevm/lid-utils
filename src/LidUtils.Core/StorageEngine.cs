@@ -11,6 +11,7 @@ namespace LidUtils.Core;
 public static class StorageEngine
 {
     private const string LockerOwner = "COIN_LOCKER";
+    private const string UserOwner = "USER";
 
     public static StorageInventory Read(string json)
     {
@@ -53,6 +54,12 @@ public static class StorageEngine
                     break;
                 case ClearStorageSlotOperation clear:
                     ClearSlot(root, locker, uid, clear.Slot);
+                    break;
+                case SetCharacterDeathBagSlotOperation setBag:
+                    SetCharacterDeathBagSlot(root, uid, setBag);
+                    break;
+                case ClearCharacterDeathBagSlotOperation clearBag:
+                    ClearCharacterDeathBagSlot(root, uid, clearBag);
                     break;
                 default:
                     throw new InvalidOperationException("The staged storage operation is not supported.");
@@ -278,6 +285,82 @@ public static class StorageEngine
         RemoveExclusivelyLockerOwnedEntity(root, locker, target, uid, oldEntityId);
     }
 
+    /// <summary>
+    /// Materializes a player-owned item into an existing fighter Death Bag slot. The entity is
+    /// placed in the same registry the game uses for carried items, with the active player as
+    /// owner, and any occupied slot that is replaced is only emptied when its old instance is
+    /// not referenced elsewhere.
+    /// </summary>
+    private static void SetCharacterDeathBagSlot(JsonObject root, int uid, SetCharacterDeathBagSlotOperation operation)
+    {
+        ArgumentNullException.ThrowIfNull(operation.Template);
+        var row = FindDeathBagSlot(root, uid, operation.CharacterId, operation.Slot);
+        ValidateTemplate(operation.Template);
+        var oldEntityId = ReadEntityId(row["eid"], $"Death Bag slot {operation.Slot}", allowEmpty: true);
+        if (oldEntityId is not null)
+            EnsureExclusivelyOwned(root, row, uid, oldEntityId, UserOwner, "the active player");
+
+        var templateEntity = ParseTemplate(operation.Template.EntityJson, "entity");
+        var targetRegistry = ResolveRegistry(root, templateEntity, operation.Template.Type, uid);
+        var nextEid = NextEntityId(BuildEntityIndex(root).Keys);
+        Materialize(templateEntity, nextEid, uid, UserOwner, operation.Template.Type == 0);
+
+        if (!string.IsNullOrWhiteSpace(operation.Template.LinkedMushroomJson))
+        {
+            if (!IsBeast(templateEntity))
+                throw new InvalidOperationException("Only beast templates may include a linked reward mushroom.");
+            var mushroom = ParseTemplate(operation.Template.LinkedMushroomJson!, "linked mushroom");
+            if (!IsMushroom(mushroom))
+                throw new InvalidOperationException("The linked beast reward must be a mushroom entity.");
+            var mushroomId = NextEntityId(BuildEntityIndex(root).Keys.Append(nextEid));
+            Materialize(mushroom, mushroomId, uid, "BEAST", isPart: false);
+            EnsureMushroomRegistry(root).Add(mushroom);
+            templateEntity["rwdemsrid"] = mushroomId;
+        }
+
+        targetRegistry.Add(templateEntity);
+        row["type"] = operation.Template.Type;
+        row["eid"] = nextEid;
+        if (row.ContainsKey("site")) row["site"] = "";
+        if (row.ContainsKey("arm_slot")) row["arm_slot"] = -1;
+        if (oldEntityId is not null)
+            RemoveExclusivelyOwnedEntity(root, row, uid, oldEntityId, UserOwner, "the active player");
+    }
+
+    private static void ClearCharacterDeathBagSlot(JsonObject root, int uid, ClearCharacterDeathBagSlotOperation operation)
+    {
+        var row = FindDeathBagSlot(root, uid, operation.CharacterId, operation.Slot);
+        var oldEntityId = ReadEntityId(row["eid"], $"Death Bag slot {operation.Slot}", allowEmpty: true);
+        if (oldEntityId is null)
+            return;
+        EnsureExclusivelyOwned(root, row, uid, oldEntityId, UserOwner, "the active player");
+        row["eid"] = "";
+        row["type"] = -1;
+        if (row.ContainsKey("site")) row["site"] = "";
+        if (row.ContainsKey("arm_slot")) row["arm_slot"] = -1;
+        RemoveExclusivelyOwnedEntity(root, row, uid, oldEntityId, UserOwner, "the active player");
+    }
+
+    private static JsonObject FindDeathBagSlot(JsonObject root, int uid, string characterId, int slotNumber)
+    {
+        if (string.IsNullOrWhiteSpace(characterId))
+            throw new InvalidOperationException("A fighter must be selected before editing a Death Bag.");
+        var key = uid.ToString(CultureInfo.InvariantCulture);
+        var ownedBags = root["soul"]?["deathbag"]?[key] as JsonObject
+            ?? throw new InvalidOperationException("The save does not contain Death Bags for the active player.");
+        var bag = ownedBags[characterId] as JsonArray
+            ?? throw new InvalidOperationException($"Fighter '{characterId}' does not have a Death Bag.");
+        var matches = bag.OfType<JsonObject>()
+            .Where(row => TryInt(row["slot"], out var slot) && slot == slotNumber)
+            .ToArray();
+        return matches.Length switch
+        {
+            1 => matches[0],
+            0 => throw new InvalidOperationException($"Fighter '{characterId}' does not have a Death Bag slot {slotNumber}."),
+            _ => throw new InvalidOperationException($"Fighter '{characterId}' has a duplicated Death Bag slot {slotNumber}.")
+        };
+    }
+
     private static JsonObject FindSlot(JsonArray locker, int slotNumber)
     {
         var matches = locker.Select(value => value?.AsObject() ?? throw new InvalidOperationException("A storage slot is not an object."))
@@ -291,13 +374,16 @@ public static class StorageEngine
         };
     }
 
-    private static void EnsureExclusivelyOwnedByLocker(JsonObject root, JsonArray locker, JsonObject target, int uid, string entityId)
+    private static void EnsureExclusivelyOwnedByLocker(JsonObject root, JsonArray locker, JsonObject target, int uid, string entityId) =>
+        EnsureExclusivelyOwned(root, target, uid, entityId, LockerOwner, "the locker");
+
+    private static void EnsureExclusivelyOwned(JsonObject root, JsonObject target, int uid, string entityId, string owner, string ownerDescription)
     {
         var entities = BuildEntityIndex(root);
         if (!entities.TryGetValue(entityId, out var entity))
-            throw new InvalidOperationException($"Storage references missing entity '{entityId}'.");
-        if (!string.Equals(ReadText(entity.Node["owner"]), LockerOwner, StringComparison.Ordinal))
-            throw new InvalidOperationException($"Entity '{entityId}' is not owned by the locker and cannot be removed.");
+            throw new InvalidOperationException($"The slot references missing entity '{entityId}'.");
+        if (!string.Equals(ReadText(entity.Node["owner"]), owner, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Entity '{entityId}' is not owned by {ownerDescription} and cannot be removed.");
         if (entity.Kind == StorageEntityKind.Part && !ReferenceEquals(entity.Parent, PartRegistry(root, uid)))
             throw new InvalidOperationException($"Equipment entity '{entityId}' is not in the active player's inventory registry.");
         var references = new List<string>();
@@ -306,16 +392,19 @@ public static class StorageEngine
             throw new InvalidOperationException($"Entity '{entityId}' is also referenced by {string.Join(", ", references.Take(3))}; it cannot be removed from storage safely.");
     }
 
-    private static void RemoveExclusivelyLockerOwnedEntity(JsonObject root, JsonArray locker, JsonObject target, int uid, string entityId)
+    private static void RemoveExclusivelyLockerOwnedEntity(JsonObject root, JsonArray locker, JsonObject target, int uid, string entityId) =>
+        RemoveExclusivelyOwnedEntity(root, target, uid, entityId, LockerOwner, "the locker");
+
+    private static void RemoveExclusivelyOwnedEntity(JsonObject root, JsonObject target, int uid, string entityId, string owner, string ownerDescription)
     {
         var entities = BuildEntityIndex(root);
         var entity = entities[entityId];
         var linkedRewardId = entity.Kind == StorageEntityKind.Beast
             ? ReadEntityId(entity.Node["rwdemsrid"], $"beast entity '{entityId}'", allowEmpty: true)
             : null;
-        if (!string.Equals(ReadText(entity.Node["owner"]), LockerOwner, StringComparison.Ordinal) ||
+        if (!string.Equals(ReadText(entity.Node["owner"]), owner, StringComparison.Ordinal) ||
             (entity.Kind == StorageEntityKind.Part && !ReferenceEquals(entity.Parent, PartRegistry(root, uid))))
-            throw new InvalidOperationException($"Entity '{entityId}' is no longer exclusively locker-owned.");
+            throw new InvalidOperationException($"Entity '{entityId}' is no longer exclusively owned by {ownerDescription}.");
         FindReferences(root, entityId, string.Empty, target, entity.Node, out var anyReference);
         if (anyReference)
             throw new InvalidOperationException($"Entity '{entityId}' gained another reference and cannot be removed safely.");

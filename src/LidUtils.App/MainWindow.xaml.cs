@@ -359,6 +359,29 @@ public partial class MainWindow : Window
     private void OnExpandCharacterBag(object sender, RoutedEventArgs e) =>
         _viewModel.SaveEditor.StageCharacterDeathBagExpansion();
 
+    private void OnSetCharacterBagItem(object sender, RoutedEventArgs e)
+    {
+        var catalog = _viewModel.SaveEditor.ItemCatalog;
+        if (!catalog.HasCatalog)
+        {
+            MessageBox.Show(
+                "Validate masters.db in the Game Database section before adding Death Bag items.",
+                "Item catalog unavailable",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var picker = new ItemCatalogPickerWindow(catalog) { Owner = this };
+        if (picker.ShowDialog() == true && picker.SelectedItem is not null)
+        {
+            _viewModel.SaveEditor.StageAddOrReplaceCharacterBagSlot(picker.SelectedItem);
+        }
+    }
+
+    private void OnClearCharacterBagItem(object sender, RoutedEventArgs e) =>
+        _viewModel.SaveEditor.StageClearCharacterBagSlot();
+
     private void OnUndoCharacterName(object sender, RoutedEventArgs e)
     {
         if (sender is Button { DataContext: CharacterRow row })

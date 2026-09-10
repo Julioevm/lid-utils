@@ -10,7 +10,7 @@
 
 - Browse and search decoded save values; stage individual scalar-value changes and export the decoded JSON.
 - Manage account storage: add or replace supported catalogue items, clear slots, and expand capacity.
-- Browse fighters and edit supported profile fields, available XP, and allocated stats; inspect Death Bags and expand their slots.
+- Browse fighters and edit supported profile fields, available XP, and allocated stats; add, replace, or clear Death Bag items and expand their slots.
 - Browse, filter, grant, and adjust owned decals.
 - Manage VIP status and passes.
 - Review every pending edit together, undo individual changes, and restore earlier backups.
@@ -33,7 +33,7 @@
 
 The app requires *LET IT DIE* to be closed before applying save or database changes. It stages edits in memory first, then creates and verifies a full backup, rechecks the source fingerprint, writes atomically, verifies the result, and records an audit entry. Restoring a backup also makes a fresh safety backup first.
 
-Some data is intentionally read-only. The storage editor only creates baseline templates for supported catalogue items—it does not create custom upgrades or cooked variants—and character inventory or equipped-item editing is outside the current scope.
+Some data is intentionally read-only. The storage and Death Bag editors only create baseline templates for supported catalogue items—they do not create custom upgrades or cooked variants—and relocating existing entities or equipped-item editing is outside the current scope.
 
 ## Quick start
 
