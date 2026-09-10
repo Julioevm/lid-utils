@@ -1,0 +1,3652 @@
+{
+ "schemaVersion": 1,
+ "source": {
+  "name": "Let It Die: Rotations and Resources Table V2",
+  "authors": "Oberlinx & Kaito (community)",
+  "sheet": "Floor_data",
+  "updated": "2021-02-08",
+  "note": "Community data. Rotation groups verified against the masters.db node rosters; see docs/map_area_info_plan.md."
+ },
+ "templateRotation": {
+  "4HMA": "1",
+  "D": "2",
+  "C": "3",
+  "B": "5",
+  "A": "6"
+ },
+ "nameAliases": {
+  "KOONI": "Kohni",
+  "NANBOKUCHO": "Nabokucho"
+ },
+ "areas": [
+  {
+   "floor": 1,
+   "name": "Ikegara",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "×",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": 1,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 2,
+   "name": "Imokawa-Cho",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "1.1",
+   "notes": ""
+  },
+  {
+   "floor": 2,
+   "name": "Wanoki",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": 2,
+   "tales": null,
+   "notes": "Over 18 Screamers, good for Mastery farming or Screamer quests."
+  },
+  {
+   "floor": 3,
+   "name": "Kami-Ikedoi",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "Blue",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "TRAP: Blue Metals. 3 Screamers. Trap is active every day, but doesn't always spawn."
+  },
+  {
+   "floor": 3,
+   "name": "Kimo-Magome",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Single Hater in Trap room."
+  },
+  {
+   "floor": 3,
+   "name": "Metakojiya",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Lots of Skillshrooms, mainly Bronze with some Silver and Gold."
+  },
+  {
+   "floor": 3,
+   "name": "Minemachi",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Unlock from 7F Shimine-Machi."
+  },
+  {
+   "floor": 3,
+   "name": "Omoki",
+   "rotations": [
+    "1",
+    "4",
+    "6"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "G★",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Gyakufunsha always appears, sells 1-2★ mats, Scratch/Hovering/Reversal & Blue/Green Metals."
+  },
+  {
+   "floor": 3,
+   "name": "Sotosenzoku",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Small area, with a single Hater and many Iron Scraps."
+  },
+  {
+   "floor": 3,
+   "name": "Tamata",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "DOD Blue",
+   "trap": "Blue",
+   "yotsuyamaBionics": null,
+   "tales": "1.2",
+   "notes": "BOSS: COEN. Drops DOD ARMS Blue Metal. TRAP: Blue Metals, only active Mon / Thu / Fri."
+  },
+  {
+   "floor": 4,
+   "name": "Kankamata",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Unlock from 9F Omeno-Kira. Many chests containing Kill Coins, 25-30k KC total."
+  },
+  {
+   "floor": 4,
+   "name": "Keiran-Jima",
+   "rotations": [
+    "6"
+   ],
+   "info": "",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Unlock from 6F Chudo. Very small - just a short hallway with one hater. Floor is Friday only."
+  },
+  {
+   "floor": 4,
+   "name": "Kyowa-Jima",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Chance for Golden Frogs and Golden Rats."
+  },
+  {
+   "floor": 4,
+   "name": "Manno",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Must first enter from 3F Sotosenzoku."
+  },
+  {
+   "floor": 4,
+   "name": "Reginaka",
+   "rotations": [
+    "1",
+    "4"
+   ],
+   "info": "44CE",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: White Steel - Normal. Drops KC, and (rarely) BP's from Max's area."
+  },
+  {
+   "floor": 4,
+   "name": "Shimo-Mariko",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 4,
+   "name": "Tagahara",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "Iron",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 5,
+   "name": "Denden-Chofu",
+   "rotations": [
+    "3",
+    "5",
+    "7"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "G",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Gyakufunsha can appear. Many Wool spawns."
+  },
+  {
+   "floor": 5,
+   "name": "Hyakudori",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "Fiber",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "1.3",
+   "notes": "Unlock from 3F Kami-Ikedoi."
+  },
+  {
+   "floor": 5,
+   "name": "Joten-Jima",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 5,
+   "name": "Moka-Ikegami",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 5,
+   "name": "Omeno-Inari",
+   "rotations": [
+    "1",
+    "4"
+   ],
+   "info": "44CE",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: White Steel - Hard. Drops KC, WS Head / Legs / Spike Crusher BPs, and various Metals."
+  },
+  {
+   "floor": 5,
+   "name": "Sokai",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "One Mk-1 Reversal Tuber, three Mk-1 Bone Tubers."
+  },
+  {
+   "floor": 5,
+   "name": "Somagawa",
+   "rotations": [
+    "1",
+    "4",
+    "6"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 6,
+   "name": "Chudo",
+   "rotations": [
+    "6"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Chance for Golden Frogs and Golden Rats. Floor is Friday only."
+  },
+  {
+   "floor": 6,
+   "name": "Heimo-Jima",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Unlock from 9F Dasahi-Machi. One long hallway with 25 Mk-1 Scratch Tubers and a Hater."
+  },
+  {
+   "floor": 6,
+   "name": "Mekaroku-Go",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Four Mk-1 Bullet Tubers, three of them in one room."
+  },
+  {
+   "floor": 6,
+   "name": "Moka-Magome",
+   "rotations": [
+    "1",
+    "3",
+    "4",
+    "6",
+    "7"
+   ],
+   "info": "M",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "WE Blue",
+   "trap": "Blue",
+   "yotsuyamaBionics": null,
+   "tales": "1.4",
+   "notes": "BOSS: JIN-DIE. Drops War Ensemble Blue Metal. TRAP: Blue Metals, 5 Screamers."
+  },
+  {
+   "floor": 6,
+   "name": "Moka-Magome",
+   "rotations": [
+    "2",
+    "5"
+   ],
+   "info": "M",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "WE Blue",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "1.4",
+   "notes": "BOSS: JIN-DIE. Drops War Ensemble Blue Metal. Trap not active Mondays & Thursdays."
+  },
+  {
+   "floor": 7,
+   "name": "Daneda",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Unlock from Niko-Senzoku Lots of Snails."
+  },
+  {
+   "floor": 7,
+   "name": "Goshi-Magome",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 7,
+   "name": "Megashi-Koya",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "G",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Gyakufunsha can appear."
+  },
+  {
+   "floor": 7,
+   "name": "Regashi-Koya",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Gates in two corridors close and stay locked until you return to Waiting Room."
+  },
+  {
+   "floor": 7,
+   "name": "Shimine-Machi",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Eight Mk-1 Bone Tubers."
+  },
+  {
+   "floor": 7,
+   "name": "Yuki",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "1.5",
+   "notes": "Unlocked from HYAKUDORI (after Jin-Die Kill) Three Mk-1 Bullet Tubers."
+  },
+  {
+   "floor": 8,
+   "name": "Kohni",
+   "rotations": [
+    "1",
+    "4"
+   ],
+   "info": "44CE",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "DOD 44CE",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: White Steel, Nightmare. All WS BPs + DOD 44CE metal."
+  },
+  {
+   "floor": 8,
+   "name": "Maminemachi",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Must first enter from 7F Regashi-Koya."
+  },
+  {
+   "floor": 8,
+   "name": "Meta-Koya",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 8,
+   "name": "Niko-Senzoku",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Unlock from 6F Mekaroku-Go. One Mk-1 Bullet Tuber."
+  },
+  {
+   "floor": 8,
+   "name": "Sashi-Magome",
+   "rotations": [
+    "6"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Floor is Friday only."
+  },
+  {
+   "floor": 9,
+   "name": "Dasahi-Machi",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Five Mk-1 Bone Tubers."
+  },
+  {
+   "floor": 9,
+   "name": "Nashiyoguchi",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "Copper",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 9,
+   "name": "Omeno-Kita",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 9,
+   "name": "Yoneguchi",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "G",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Gyakufunsha can appear."
+  },
+  {
+   "floor": 9,
+   "name": "Yoshiki-Dani",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "1.6",
+   "notes": "One Mk-1 Reversal Tuber."
+  },
+  {
+   "floor": 10,
+   "name": "Omeno-Soto",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "×",
+   "stamp": true,
+   "shop": "",
+   "boss": "DOD Blue",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: Max Sharp."
+  },
+  {
+   "floor": 10,
+   "name": "Omeno-Toichi",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Four Mk-2 Hover Tubers."
+  },
+  {
+   "floor": 10,
+   "name": "Shimo-Omeno",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 11,
+   "name": "Maka-Tsutsumi",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "CW Green",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: GOTO-9. Drops Candle Wolf Green Metal."
+  },
+  {
+   "floor": 11,
+   "name": "Nokejiri",
+   "rotations": [
+    "1",
+    "3",
+    "4",
+    "7"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Unlock from 10F Shimo-Omeno. Trap room not active on Tue/Wed/Sat/Sun."
+  },
+  {
+   "floor": 11,
+   "name": "Nokejiri",
+   "rotations": [
+    "2",
+    "5",
+    "6"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "Green",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "TRAP: Green or Blue Metals. Not active on Tue/Wed/Sat/Sun. 2 Bone Tubers, 1 Screamer."
+  },
+  {
+   "floor": 12,
+   "name": "Fuga-Dokoro",
+   "rotations": [
+    "1",
+    "4"
+   ],
+   "info": "44CE",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: Red Napalm - Normal. Drops KC, and (rarely) BPs from Jackson's area."
+  },
+  {
+   "floor": 12,
+   "name": "Seyane",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Unlock from 14F Yamadai."
+  },
+  {
+   "floor": 12,
+   "name": "Ukongaoka",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "Fiber",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 13,
+   "name": "Kamoto",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": 3,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 13,
+   "name": "Momohara",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "2.1",
+   "notes": ""
+  },
+  {
+   "floor": 13,
+   "name": "Nonokura",
+   "rotations": [
+    "6"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Floor is Friday only."
+  },
+  {
+   "floor": 13,
+   "name": "Okusa",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Unlock from 14F Ukisawa. 2-3 Golden Snails, throw a Beast to knock them down."
+  },
+  {
+   "floor": 14,
+   "name": "Fune-Hashi",
+   "rotations": [
+    "1",
+    "4"
+   ],
+   "info": "44CE",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: Red Napalm - Hard. Drops KC, all RN Armor BPs, and WE Metals."
+  },
+  {
+   "floor": 14,
+   "name": "Kami-Umai",
+   "rotations": [
+    "6"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Floor is Friday only."
+  },
+  {
+   "floor": 14,
+   "name": "Koshi-Tagawa",
+   "rotations": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "7"
+   ],
+   "info": "",
+   "material": "×",
+   "stamp": false,
+   "shop": "G",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Gyakufunsha can appear. Floor is active every day, except Friday."
+  },
+  {
+   "floor": 14,
+   "name": "Takoya",
+   "rotations": [
+    "6"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Unlock from 13F Nonokura. Floor is Friday only."
+  },
+  {
+   "floor": 14,
+   "name": "Ukisawa",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 14,
+   "name": "Yamadai",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "2.2",
+   "notes": "Many Hemp spawns (about 3-6)."
+  },
+  {
+   "floor": 15,
+   "name": "Uge",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 15,
+   "name": "Usogaya",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "2.3",
+   "notes": ""
+  },
+  {
+   "floor": 16,
+   "name": "Kaga",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "Wood",
+   "stamp": true,
+   "shop": "",
+   "boss": "WE Green",
+   "trap": "",
+   "yotsuyamaBionics": 4,
+   "tales": null,
+   "notes": "BOSS: JIN-DIE. Drops War Ensemble Green Metal."
+  },
+  {
+   "floor": 16,
+   "name": "Kisuyama",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 16,
+   "name": "Kitamin",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 17,
+   "name": "Hoshi-Josui",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 17,
+   "name": "Kinutamin",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "2.4",
+   "notes": ""
+  },
+  {
+   "floor": 17,
+   "name": "Kyuzaka",
+   "rotations": [
+    "1",
+    "4"
+   ],
+   "info": "44CE",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "WE 44CE",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: Red Napalm - Nightmare. All RN BPs + WE 44CE metal."
+  },
+  {
+   "floor": 17,
+   "name": "Nutakoen",
+   "rotations": [
+    "2",
+    "3",
+    "5",
+    "6",
+    "7"
+   ],
+   "info": "",
+   "material": "×",
+   "stamp": false,
+   "shop": "G",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Gyakufunsha can appear."
+  },
+  {
+   "floor": 18,
+   "name": "Bo-Tsutsumi",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "One Mk-2 Reversal Tuber."
+  },
+  {
+   "floor": 18,
+   "name": "Taishidon",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 18,
+   "name": "Tata",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 18,
+   "name": "Temo-Uma",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "Green",
+   "yotsuyamaBionics": null,
+   "tales": "2.5",
+   "notes": "TRAP: Green or Blue Metals. Mk-3 Bullet, Bone Tuber, Screamer."
+  },
+  {
+   "floor": 19,
+   "name": "Chitose-Mei",
+   "rotations": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "6",
+    "7"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "Green",
+   "yotsuyamaBionics": null,
+   "tales": "2.6",
+   "notes": "TRAP: Green or Blue Metals. 5 Screamers. Not active on Thursdays."
+  },
+  {
+   "floor": 19,
+   "name": "Chitose-Mei",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "2.6",
+   "notes": "Trap Room not active on Thursdays."
+  },
+  {
+   "floor": 19,
+   "name": "Daida",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "One Mk-2 Reversal Tuber."
+  },
+  {
+   "floor": 19,
+   "name": "Hibiki",
+   "rotations": [
+    "1",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Floor is active every day, except Monday."
+  },
+  {
+   "floor": 19,
+   "name": "Mekamachi",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 20,
+   "name": "Hachiyanma",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "×",
+   "stamp": true,
+   "shop": "",
+   "boss": "WE Green",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: Colonel Jackson."
+  },
+  {
+   "floor": 20,
+   "name": "Monegi",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 20,
+   "name": "Nora",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 21,
+   "name": "Akami",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "All",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 21,
+   "name": "Arigure",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 22,
+   "name": "Eisei",
+   "rotations": [
+    "6"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Floor is Friday only."
+  },
+  {
+   "floor": 22,
+   "name": "Fukuiki",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Single Hater. Clearing trap rooms on connected floors 25, 27 & 29 unlocks gates."
+  },
+  {
+   "floor": 22,
+   "name": "Hizashi-gaoka",
+   "rotations": [
+    "1",
+    "4"
+   ],
+   "info": "44CE",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: Black Thunder - Normal. Drops KC, or (rarely) BPs from Crowley's area."
+  },
+  {
+   "floor": 22,
+   "name": "Iwajima",
+   "rotations": [
+    "1",
+    "4",
+    "6"
+   ],
+   "info": "",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Unock from 23F Honkawa. One Mk-3 Reversal Tuber; Don't loot all chests or it'll stop spawning."
+  },
+  {
+   "floor": 22,
+   "name": "Kawabe",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "Black",
+   "yotsuyamaBionics": null,
+   "tales": "3.1",
+   "notes": "TRAP: Black or Green Metals. Two Mk-3 Bone, one axe Screamer."
+  },
+  {
+   "floor": 22,
+   "name": "Okano",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Must first enter from 25F Fuyu-Bayashi. Mk-3 Reversal Tuber. Clear traps to unlock floor gates."
+  },
+  {
+   "floor": 22,
+   "name": "Tomiyama",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 22,
+   "name": "Toyokawa",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Must first enter from 21F Akami."
+  },
+  {
+   "floor": 23,
+   "name": "Echizen-Jima",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "CW Black",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: GOTO-9. Drops Candle Wolf Black Metals."
+  },
+  {
+   "floor": 23,
+   "name": "Honkawa",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": 5,
+   "tales": null,
+   "notes": "Chance for a Golden Scorpion."
+  },
+  {
+   "floor": 23,
+   "name": "Sensu-Bashi",
+   "rotations": [
+    "1",
+    "4",
+    "6"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Only connects to 22F Iwajima on Fridays. 5 Red Scorpions."
+  },
+  {
+   "floor": 24,
+   "name": "Agasu",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Unlock from 23F Echizen-Jima."
+  },
+  {
+   "floor": 24,
+   "name": "Moriba",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "×",
+   "stamp": false,
+   "shop": "G",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Gyakufunsha can appear. Small area with a single Hater - good for farming CHARGERS."
+  },
+  {
+   "floor": 24,
+   "name": "Sumikiyo",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "3.2",
+   "notes": "Unlock from 23F Echizen-Jima."
+  },
+  {
+   "floor": 25,
+   "name": "Fugami",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Must first enter from 22F Toyokawa."
+  },
+  {
+   "floor": 25,
+   "name": "Furu-Iwaba",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Clearing the trap room unlocks one of three gates on 22F Fukuiki."
+  },
+  {
+   "floor": 25,
+   "name": "Fuyu-Bayashi",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Silk floor"
+  },
+  {
+   "floor": 25,
+   "name": "Kanie",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "3.3",
+   "notes": ""
+  },
+  {
+   "floor": 25,
+   "name": "Oshi-Hama",
+   "rotations": [
+    "1",
+    "4",
+    "6"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Unlock from both 24F Agasu and 27F Yukiyoshi."
+  },
+  {
+   "floor": 25,
+   "name": "Tsubaki",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Up to three Golden Turtles."
+  },
+  {
+   "floor": 26,
+   "name": "Hatake-gara",
+   "rotations": [
+    "1",
+    "4"
+   ],
+   "info": "44CE",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: Black Thunder - Hard. Drops KC, all BT Armor / Head of Medusa BPs, and CW Metals."
+  },
+  {
+   "floor": 26,
+   "name": "Oshimi",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": false,
+   "shop": "",
+   "boss": "DOD Black",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: COEN. Drops DOD ARMS Black Metal. Unlocks one of the gates to the 27F Elevator."
+  },
+  {
+   "floor": 26,
+   "name": "Shimemeno",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": false,
+   "shop": "",
+   "boss": "WE Black",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: JIN-DIE. Drops War Ensemble Black Metal. Unlocks one of the gates to the 27F Elevator."
+  },
+  {
+   "floor": 26,
+   "name": "Yoshimi",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 27,
+   "name": "Daimon-Machi",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "×",
+   "stamp": true,
+   "shop": "G",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Gyakufunsha can appear. Must first enter from 26F Oshimi."
+  },
+  {
+   "floor": 27,
+   "name": "Dotedori",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 27,
+   "name": "Kinoe",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 27,
+   "name": "Kurokawa",
+   "rotations": [
+    "1",
+    "4",
+    "6"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 27,
+   "name": "Oe",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "One Mk-4 Reversal Tuber."
+  },
+  {
+   "floor": 27,
+   "name": "Rikka",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Clearing the trap room unlocks one of three gates on F22 Fukuiki."
+  },
+  {
+   "floor": 27,
+   "name": "Shichi-Fugu",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Four Mk-3 Bullet Tubers."
+  },
+  {
+   "floor": 27,
+   "name": "Shinko-Bashi",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "3.4",
+   "notes": "Elevator is locked behind two gates until both 26F COEN and 26F JIN-DIE are defeated."
+  },
+  {
+   "floor": 27,
+   "name": "Yukiyoshi",
+   "rotations": [
+    "1",
+    "4",
+    "6"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "G★",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Gyakufunsha always appears, sells 3-5★ mats, all Tuber metals, and Black / Red Metals."
+  },
+  {
+   "floor": 28,
+   "name": "Fumibana",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 28,
+   "name": "Hyakkoku",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "Black",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "TRAP: Black or Green Metals. Four Mk-4 Scratch, one Mk-4 Hover, spear Screamer."
+  },
+  {
+   "floor": 28,
+   "name": "Hyakuda",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "Black",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "TRAP: Black or Green Metals. Five Screamers, one at a time."
+  },
+  {
+   "floor": 28,
+   "name": "Tojima",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 29,
+   "name": "Aotobashi",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 29,
+   "name": "Banzei",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Five Mk-4 Bullet, one Mk-4 Reversal. Gate to Hyakkoku locks again every run, clear trap room."
+  },
+  {
+   "floor": 29,
+   "name": "Hashidaka",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "3.5",
+   "notes": "Unlock from 28F Hyakkoku and/or Hyakuda. One Mk-4 Reversal Tuber."
+  },
+  {
+   "floor": 29,
+   "name": "Henke",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 29,
+   "name": "Tatekawa",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Clearing the trap room unlocks one of three gates on 22F Fukuiki."
+  },
+  {
+   "floor": 29,
+   "name": "Temae-Jima",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "G",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": 6,
+   "tales": null,
+   "notes": "Monday only. The Yotsuyama Bionics page here is the only one on a day-exclusive floor."
+  },
+  {
+   "floor": 30,
+   "name": "Hikiage",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": false,
+   "shop": "G",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 30,
+   "name": "Nabokucho",
+   "rotations": [
+    "1",
+    "4"
+   ],
+   "info": "44CE",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "CW 44CE",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: Black Thunder - Nightmare. All BT BPs + CW 44CE metal."
+  },
+  {
+   "floor": 30,
+   "name": "Saigetsu",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "×",
+   "stamp": true,
+   "shop": "",
+   "boss": "CW Black",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "3.6",
+   "notes": "BOSS: Mr. Crowley."
+  },
+  {
+   "floor": 30,
+   "name": "Towada",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 30,
+   "name": "Utatsu",
+   "rotations": [
+    "6"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "One Mk-4 Reversal Tuber. Floor is Friday only."
+  },
+  {
+   "floor": 30,
+   "name": "Yokozuna",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "One Mk-4 Reversal Tuber."
+  },
+  {
+   "floor": 31,
+   "name": "Itsu-Tsukumo",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 31,
+   "name": "Koi",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "One Mk-4 Reversal Tuber in a dead-end trap room."
+  },
+  {
+   "floor": 31,
+   "name": "Obara",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "All",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 32,
+   "name": "Katsuma",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": true,
+   "shop": "",
+   "boss": "MILK Red",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: U-10. Drops MILK Red Metal."
+  },
+  {
+   "floor": 32,
+   "name": "Koshi-Yama",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "Red",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "TRAP: Red or Black Metals. Mk-4 Bone Tuber, two Screamers. Unlock from 33F Uchinobu."
+  },
+  {
+   "floor": 32,
+   "name": "Osuki",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 32,
+   "name": "Shirokin",
+   "rotations": [
+    "1",
+    "4"
+   ],
+   "info": "44CE",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: Pale Wind - Normal. Drops KC, or (rarely) BPs from Taro's area."
+  },
+  {
+   "floor": 33,
+   "name": "Akabadai",
+   "rotations": [
+    "1",
+    "4",
+    "6"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 33,
+   "name": "Kurome",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 33,
+   "name": "Midorisaka",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "×",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Two Mk-4 Bullet Tubers."
+  },
+  {
+   "floor": 33,
+   "name": "Miraigaoka",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "One Mk-5 Bullet Tuber. Unlock from 31F Obara."
+  },
+  {
+   "floor": 33,
+   "name": "Tengokuji",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "KNIGHT RIDERS ZX PIT appears during the anniversary"
+  },
+  {
+   "floor": 33,
+   "name": "Togose",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 33,
+   "name": "Uchinobu",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "G",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 34,
+   "name": "Azaba",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 34,
+   "name": "Kohashi",
+   "rotations": [
+    "1",
+    "4",
+    "6"
+   ],
+   "info": "",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Three traps, each with a Mk-4 Reversal Tuber. Chance for a Golden Bird."
+  },
+  {
+   "floor": 34,
+   "name": "Nagazaka",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 34,
+   "name": "Nitanda",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "×",
+   "stamp": true,
+   "shop": "",
+   "boss": "DOD Red",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: COEN. Drops DOD ARMS Red Metal."
+  },
+  {
+   "floor": 34,
+   "name": "Otani-Yama",
+   "rotations": [
+    "1",
+    "4",
+    "6"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 34,
+   "name": "Sengoku",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 34,
+   "name": "Takayama",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 35,
+   "name": "Dainoba",
+   "rotations": [
+    "1",
+    "4"
+   ],
+   "info": "44CE",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: Pale Wind - Hard. Drops KC, all PW Armor BPs, and MILK Metals."
+  },
+  {
+   "floor": 35,
+   "name": "Komada",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "One Mk-4 Reversal Tuber."
+  },
+  {
+   "floor": 35,
+   "name": "Nakaeda",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "One Mk-4 Bullet Tuber."
+  },
+  {
+   "floor": 35,
+   "name": "Shina-Yama",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "4.1",
+   "notes": "Must unlock from 34F Nitanda."
+  },
+  {
+   "floor": 35,
+   "name": "Wakaba",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "Red",
+   "yotsuyamaBionics": 7,
+   "tales": null,
+   "notes": "TRAP: Red or Black Metals. 4 Mk-5 Scratch, Mk-5 Hover, a Screamer.Gate in the garden locks automatically; cannot approach from Nagazaka/Sengoku."
+  },
+  {
+   "floor": 36,
+   "name": "Hiranuma",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 36,
+   "name": "Itanodai",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": false,
+   "shop": "",
+   "boss": "CW Red",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "4.2",
+   "notes": "BOSS: GOTO-9. Drops Candle Wolf Red Metal."
+  },
+  {
+   "floor": 36,
+   "name": "Momonoki-Zaka",
+   "rotations": [
+    "1",
+    "4",
+    "6"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 36,
+   "name": "Senbashi",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "One Mk-5 Reversal, three Mk-5 Bullet Tubers."
+  },
+  {
+   "floor": 36,
+   "name": "Yatsuo",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "All",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": 8,
+   "tales": null,
+   "notes": "Only properly connects to 35F Wakaba on Monday."
+  },
+  {
+   "floor": 37,
+   "name": "Atagi",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Two Mk-5 Bullet Tubers."
+  },
+  {
+   "floor": 37,
+   "name": "Hiromatsu",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "4.3",
+   "notes": "Must unlock from 36F Itanodai."
+  },
+  {
+   "floor": 37,
+   "name": "Konagi",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 37,
+   "name": "Mitsuba",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 37,
+   "name": "Moguro",
+   "rotations": [
+    "1",
+    "4",
+    "6"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 38,
+   "name": "Ebata",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "WE Red",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "4.4",
+   "notes": "BOSS: JIN-DIE. Drops War Ensemble Red Metal. Two Mk-5 Bullet Tubers."
+  },
+  {
+   "floor": 38,
+   "name": "Himokawa",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Four Mk-5 Bullet, two Mk-5 Bone Tubers. Locked coming from Yatsuo Unlock from Nakaeda"
+  },
+  {
+   "floor": 38,
+   "name": "Ibakoen",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Two Mk-5 Bullet Tubers."
+  },
+  {
+   "floor": 38,
+   "name": "Ibamura",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Many Silk spawns (about 4-6)."
+  },
+  {
+   "floor": 38,
+   "name": "Jiyu-Toge",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 38,
+   "name": "Koba",
+   "rotations": [
+    "1",
+    "4",
+    "6"
+   ],
+   "info": "",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 38,
+   "name": "Sotone",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Many Leather spawns."
+  },
+  {
+   "floor": 38,
+   "name": "Takanowa",
+   "rotations": [
+    "1",
+    "4"
+   ],
+   "info": "44CE",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "MILK 44CE",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "BOSS: Pale Wind - Nightmare. All PW BPs + MILK 44CE metal."
+  },
+  {
+   "floor": 38,
+   "name": "Yataka-Cho",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "Red",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "TRAP: Red or Black Metals. Five Screamers one after another."
+  },
+  {
+   "floor": 39,
+   "name": "Haratsuka",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": false,
+   "shop": "G",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "4.5",
+   "notes": "Gyakufunsha can appear. Three Mk-5 Bullet Tubers."
+  },
+  {
+   "floor": 39,
+   "name": "Miketa",
+   "rotations": [
+    "5"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "One Mk-5 Bullet Tuber."
+  },
+  {
+   "floor": 39,
+   "name": "Nakasaki",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 39,
+   "name": "Shinkawa",
+   "rotations": [
+    "2"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "One Mk-5 Bullet Tuber."
+  },
+  {
+   "floor": 40,
+   "name": "Futagi",
+   "rotations": [
+    "0"
+   ],
+   "info": "M",
+   "material": "×",
+   "stamp": true,
+   "shop": "",
+   "boss": "MILK Red",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": "4.6",
+   "notes": "BOSS: Taro Gunkanyama. Must kill 38F JIN-DIE to unlock the floor."
+  },
+  {
+   "floor": 40,
+   "name": "Kakino-Misaki",
+   "rotations": [
+    "3",
+    "7"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 41,
+   "name": "Chojo",
+   "rotations": [
+    "0"
+   ],
+   "info": "",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Final floor of the main game."
+  },
+  {
+   "floor": 41,
+   "name": "Su-Oi",
+   "rotations": [
+    "B"
+   ],
+   "info": "M",
+   "material": "×",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Gate is locked until your inventory is 5 items or less (7 with Express)."
+  },
+  {
+   "floor": 42,
+   "name": "Wadachi",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 43,
+   "name": "Seya",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 43,
+   "name": "Soku",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 44,
+   "name": "Iroka",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "C",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Chokufunsha can appear."
+  },
+  {
+   "floor": 44,
+   "name": "Mayari",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 44,
+   "name": "Shujima",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 45,
+   "name": "Doame",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "Purple",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Treasure Room. Returns you to the Waiting Room. Chest has a Purple, Red or Black Metal."
+  },
+  {
+   "floor": 45,
+   "name": "Giou",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "Purple",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Treasure Room. Returns you to the Waiting Room. Chest has a Purple, Red or Black Metal."
+  },
+  {
+   "floor": 45,
+   "name": "Kino",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 45,
+   "name": "Otatai",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 45,
+   "name": "Otaya",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 46,
+   "name": "Furujiya",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "C",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Chokufunsha can appear."
+  },
+  {
+   "floor": 46,
+   "name": "Koutou",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 46,
+   "name": "Kurihari",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": false,
+   "shop": "C",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Chokufunsha can appear."
+  },
+  {
+   "floor": 46,
+   "name": "Mohokou",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "C",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Chokufunsha can appear."
+  },
+  {
+   "floor": 46,
+   "name": "Tahei",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "Purple",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Treasure Room. Returns you to the Waiting Room. Chest has a Purple, Red or Black Metal."
+  },
+  {
+   "floor": 46,
+   "name": "Takaihe",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": true,
+   "shop": "C",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Chokufunsha, or the rare Tree floor, can appear."
+  },
+  {
+   "floor": 47,
+   "name": "Arataden",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "The rare Tree floor can appear."
+  },
+  {
+   "floor": 47,
+   "name": "Hama-Nushika",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 47,
+   "name": "Koumin",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 47,
+   "name": "Samino",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "Purple",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Treasure Room. Returns you to the Waiting Room. Chest has a Purple, Red or Black Metal."
+  },
+  {
+   "floor": 47,
+   "name": "Sara-Mannu",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 48,
+   "name": "Chiko-Matsu",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 48,
+   "name": "Hibaki",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 48,
+   "name": "Jusenju",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Aluminum",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "Purple",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Treasure Room. Returns you to the Waiting Room. Chest has a Purple, Red or Black Metal."
+  },
+  {
+   "floor": 48,
+   "name": "Kibarase",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Wood",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "Purple",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Treasure Room. Returns you to the Waiting Room. Chest has a Purple, Red or Black Metal."
+  },
+  {
+   "floor": 48,
+   "name": "Tatsumanu",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "All",
+   "stamp": false,
+   "shop": "C",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Chokufunsha can appear."
+  },
+  {
+   "floor": 49,
+   "name": "Fuwa",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Oil",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "Purple",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Treasure Room. Returns you to the Waiting Room. Chest has a Purple, Red or Black Metal."
+  },
+  {
+   "floor": 49,
+   "name": "Neri",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Fiber",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "Purple",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Treasure Room. Returns you to the Waiting Room. Chest has a Purple, Red or Black Metal."
+  },
+  {
+   "floor": 49,
+   "name": "Nerikou",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Iron",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": ""
+  },
+  {
+   "floor": 50,
+   "name": "Naka-Wara",
+   "rotations": [
+    "B"
+   ],
+   "info": "",
+   "material": "Copper",
+   "stamp": true,
+   "shop": "",
+   "boss": "",
+   "trap": "Purple",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Treasure Room. Chest has a Purple, Red or Black Metal. Leads to 51F Tengokumon."
+  },
+  {
+   "floor": 51,
+   "name": "Tengokumon",
+   "rotations": [
+    "B"
+   ],
+   "info": "M",
+   "material": "×",
+   "stamp": false,
+   "shop": "",
+   "boss": "",
+   "trap": "",
+   "yotsuyamaBionics": null,
+   "tales": null,
+   "notes": "Final Elevator. Gate to TENGOKU is locked until your inventory is 5 items or less (7 with Express)."
+  }
+ ]
+}

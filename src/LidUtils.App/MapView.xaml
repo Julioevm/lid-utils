@@ -49,6 +49,8 @@
                           ToolTip="Show short area ids next to dots when they fit without overlapping"/>
                 <CheckBox Content="Bosses" IsChecked="{Binding ShowBossInfo}" VerticalAlignment="Center" Margin="12,0,0,0"
                           ToolTip="Show boss markers: section boss arenas (red) and paid Four Force Men rooms (gold)"/>
+                <CheckBox Content="Loot" IsChecked="{Binding ShowLootInfo}" VerticalAlignment="Center" Margin="12,0,0,0"
+                          ToolTip="Show the community area-information markers (materials, stamp, wandering shop, collectible, trap room)"/>
             </StackPanel>
             <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0"
                         Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}">
@@ -89,9 +91,10 @@
         <!-- Map + details -->
         <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"
+                                  MinWidth="280"/>
                 <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="360"/>
+                <ColumnDefinition Width="420"/>
             </Grid.ColumnDefinitions>
             <Border Background="#0F1319" BorderBrush="#2A313D" BorderThickness="1" CornerRadius="4" ClipToBounds="True">
                 <ScrollViewer x:Name="MapScrollViewer"
@@ -129,12 +132,14 @@
                           VirtualizingPanel.VirtualizationMode="Recycling">
                     <DataGrid.RowStyle>
                         <Style TargetType="DataGridRow">
-                            <Setter Property="ToolTip" Value="{Binding BossSummary}"/>
+                            <Setter Property="ToolTip" Value="{Binding RowSummary}"/>
                         </Style>
                     </DataGrid.RowStyle>
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Floor" Binding="{Binding FloorLabel}" Width="44"/>
-                        <DataGridTextColumn Header="Boss" Binding="{Binding BossLabel}" Width="58"/>
+                        <DataGridTextColumn Header="Boss" Binding="{Binding BossLabel}" Width="52"/>
+                        <DataGridTextColumn Header="Mat" Binding="{Binding MaterialLabel}" Width="56"/>
+                        <DataGridTextColumn Header="$" Binding="{Binding ShopLabel}" Width="38"/>
                         <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
                         <DataGridTextColumn Header="Elv" Binding="{Binding ElevatorLabel}" Width="74"/>
                     </DataGrid.Columns>
@@ -162,6 +167,7 @@
             <Run Text=" Coloured rings and matching route lines are elevator services — floors the same car stops at are joined even when no stairs or hatches connect them, and each car has its own colour. The Waiting Room (main elevator) is the hub at the base of the tower."/>
             <Run Text=" The themed bands are shown on a single vertical scale (F1 at the bottom). Heaven (F51–F451) is not included in this iteration." Foreground="#8A6F2F"/>
             <Run Text=" Boss markers: " Foreground="#8A94A6"/><Run Text="BOSS" Foreground="#E4587A"/><Run Text=" = boss arena, " Foreground="#8A94A6"/><Run Text="FFM" Foreground="#E8C36A"/><Run Text=" = paid Four Force Men room. Boss-gated routes are drawn in the matching colour. Roaming section bosses are not badged." Foreground="#8A94A6"/>
+            <Run Text=" Loot markers (community sheet): material name, " Foreground="#8A94A6"/><Run Text="&#x25CE;" Foreground="#8A94A6"/><Run Text=" stamp machine, " Foreground="#8A94A6"/><Run Text="$" Foreground="#8A94A6"/><Run Text=" wandering shop, " Foreground="#8A94A6"/><Run Text="&#x25AE;" Foreground="#8A94A6"/><Run Text=" magazine collectible, " Foreground="#8A94A6"/><Run Text="&#x25B2;" Foreground="#8A94A6"/><Run Text=" trap room. Notes are community data (Rotations and Resources Table V2 by Oberlinx &amp; Kaito); toggle with Loot." Foreground="#8A94A6"/>
         </TextBlock>
     </Grid>
 </UserControl>

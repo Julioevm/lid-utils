@@ -37,6 +37,19 @@ public partial class App : Application
             saveCatalog = SaveValueCatalog.Empty;
         }
 
+        MapAreaInfoCatalog mapAreaInfoCatalog;
+        try
+        {
+            mapAreaInfoCatalog = MapAreaInfoCatalogLoader.Load(Path.Combine(AppContext.BaseDirectory, "map-area-info.json"));
+        }
+        catch (CatalogValidationException exception)
+        {
+            MessageBox.Show(exception.Message + Environment.NewLine + Environment.NewLine +
+                "The tower map will continue without the community area information overlay.",
+                "Invalid map-area catalog", MessageBoxButton.OK, MessageBoxImage.Warning);
+            mapAreaInfoCatalog = MapAreaInfoCatalog.Empty;
+        }
+
         var validator = new DatabaseValidator();
         var itemCatalogService = new ItemCatalogService();
         var saveEditor = new SaveEditorViewModel(new SaveFileService(), saveCatalog, itemCatalogService, itemCatalogService);
@@ -49,7 +62,8 @@ public partial class App : Application
             catalog,
             saveEditor,
             itemCatalogService,
-            new MapDataService());
+            new MapDataService(),
+            mapAreaInfoCatalog);
 
         new MainWindow(viewModel).Show();
     }

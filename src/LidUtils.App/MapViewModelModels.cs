@@ -31,6 +31,27 @@ public sealed class MapNodeItem
     /// <summary>Short boss marker (BOSS / FFM) drawn above the node; empty when none.</summary>
     public string BossBadge { get; init; } = string.Empty;
 
+    /// <summary>Curated community info for this area on the selected rotation; null when unknown.</summary>
+    public MapAreaInfo? Info { get; init; }
+
+    /// <summary>Compact loot marker drawn below the node (material + stamp/shop/collectible markers).</summary>
+    public string LootBadge { get; init; } = string.Empty;
+
+    /// <summary>True when the node has any curated loot fact to draw.</summary>
+    public bool HasLoot => LootBadge.Length > 0;
+
+    /// <summary>Short material family shown in the area list; empty when the area yields none.</summary>
+    public string MaterialLabel => Info is { HasMaterial: true } info ? info.Material : string.Empty;
+
+    /// <summary>True when the area yields loose crafting materials.</summary>
+    public bool HasMaterial => Info is { HasMaterial: true };
+
+    /// <summary>True when a stamp machine is available here this rotation.</summary>
+    public bool HasStamp => Info?.HasStamp == true;
+
+    /// <summary>True when the area carries a Yotsuyama Bionics / Tales collectible.</summary>
+    public bool HasCollectible => Info?.HasCollectible == true;
+
     public bool HasForceManRoom => Node.IsForceManRoom;
     public bool HasBossArena => Node.IsBossArena;
     public bool HasBoss => Node.HasBoss;
@@ -89,4 +110,22 @@ public sealed class MapAreaRow
     public string BossSummary { get; init; } = string.Empty;
     public bool HasBoss => Node.HasBoss;
     public string Key => Node.Key;
+
+    /// <summary>Curated community info for this area on the selected rotation; null when unknown.</summary>
+    public MapAreaInfo? Info { get; init; }
+
+    /// <summary>Short material family for the list column; empty when none.</summary>
+    public string MaterialLabel => Info is { HasMaterial: true } info ? info.Material : string.Empty;
+
+    /// <summary>Wandering-shop marker for the list column; empty when none.</summary>
+    public string ShopLabel => Info?.HasShop == true ? Info.Shop : string.Empty;
+
+    /// <summary>Collectible summary (Yotsuyama Bionics page / Tales chapter); empty when none.</summary>
+    public string CollectibleLabel => Info?.CollectibleLabel ?? string.Empty;
+
+    /// <summary>Player-facing rotation availability, e.g. "Wednesday/Sunday only".</summary>
+    public string RotationLabel => Info?.RotationLabel ?? string.Empty;
+
+    /// <summary>One-line summary shown as the area-list row tooltip (boss + curated facts).</summary>
+    public string RowSummary { get; init; } = string.Empty;
 }

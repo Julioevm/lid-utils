@@ -52,7 +52,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         SettingsCatalog catalog,
         SaveEditorViewModel saveEditor,
         IItemCatalogService? itemCatalogService = null,
-        IMapDataService? mapDataService = null)
+        IMapDataService? mapDataService = null,
+        MapAreaInfoCatalog? mapAreaInfoCatalog = null)
     {
         _discoveryService = discoveryService;
         _validator = validator;
@@ -63,7 +64,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _itemCatalogService = itemCatalogService;
         SaveEditor = saveEditor;
         ItemCatalog = new ItemCatalogViewModel(itemCatalogService);
-        Map = new MapViewModel(mapDataService);
+        Map = new MapViewModel(mapDataService, mapAreaInfoCatalog);
         SaveEditor.FavoritePointersChanged += SaveFavoriteSavePointers;
         SettingsView = CollectionViewSource.GetDefaultView(Settings);
         SettingsView.Filter = FilterSetting;

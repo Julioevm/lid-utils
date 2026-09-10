@@ -16,6 +16,7 @@ public sealed class MapViewModel : INotifyPropertyChanged
     public const string WholeTowerBandKey = "all";
 
     private readonly IMapDataService? _service;
+    private readonly MapAreaInfoCatalog _areaInfoCatalog;
     private TowerMapLoadResult? _data;
     private string _selectedTemplate = "4HMA";
     private MapBandOption? _selectedBand;
@@ -27,10 +28,12 @@ public sealed class MapViewModel : INotifyPropertyChanged
     private int _geometryVersion;
     private bool _showAreaLabels;
     private bool _showBossInfo = true;
+    private bool _showLootInfo = true;
 
-    public MapViewModel(IMapDataService? service = null)
+    public MapViewModel(IMapDataService? service = null, MapAreaInfoCatalog? areaInfoCatalog = null)
     {
         _service = service;
+        _areaInfoCatalog = areaInfoCatalog ?? MapAreaInfoCatalog.Empty;
         _selectedBand = BandOptions[0];
     }
 
@@ -134,6 +137,17 @@ public sealed class MapViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>Draws the curated loot markers (materials, stamp, shop, collectible, trap) on the canvas.</summary>
+    public bool ShowLootInfo
+    {
+        get => _showLootInfo;
+        set
+        {
+            if (!SetField(ref _showLootInfo, value)) return;
+            RaiseLayoutChanged();
+        }
+    }
+
     public MapAreaRow? SelectedArea
     {
         get => _selectedArea;
@@ -155,7 +169,7 @@ public sealed class MapViewModel : INotifyPropertyChanged
         : $"{SelectedArea.Name} · Floor {SelectedArea.Node.FloorNumber}";
     public string SelectedDetails => SelectedArea is null
         ? "Click an area dot on the map or a row in the list to inspect it."
-        : BuildDetails(SelectedArea.Node);
+        : BuildDetails(SelectedArea);
 
     public string ActiveTemplateSummary => HasData
         ? $"Rotation {_data!.ActiveTemplateId} is live until {FormatDate(_data.ActiveTermExpiresUtc)}." +
@@ -352,6 +366,7 @@ public sealed class MapViewModel : INotifyPropertyChanged
             foreach (var node in ordered)
             {
                 var x = settled[node];
+                var info = ResolveAreaInfo(node);
                 nodeItems.Add(new MapNodeItem
                 {
                     Node = node,
@@ -359,10 +374,12 @@ public sealed class MapViewModel : INotifyPropertyChanged
                     Y = TopPad + (maxFloor - node.FloorNumber) * RowHeight,
                     Radius = node.IsBase ? 7d : 5d,
                     StageId = node.StageId,
-                    ToolTipText = BuildToolTip(template, node),
+                    Info = info,
+                    ToolTipText = BuildToolTip(template, node, info),
                     LabelText = DisplayName(node),
                     ShowLabel = ShowAreaLabels,
                     BossBadge = BuildBossBadge(node),
+                    LootBadge = BuildLootBadge(info),
                     ElevatorColorIndex = colorByCar.TryGetValue(node.ElevatorCarId, out var colorIndex) ? colorIndex : -1
                 });
             }
@@ -378,7 +395,7 @@ public sealed class MapViewModel : INotifyPropertyChanged
                 Y = floorOneY + RowHeight + HeadGap,
                 Radius = 9d,
                 StageId = "HEAD",
-                ToolTipText = BuildToolTip(template, headNode),
+                ToolTipText = BuildToolTip(template, headNode, null),
                 LabelText = TowerMapCatalog.WaitingRoomName,
                 ShowLabel = ShowAreaLabels,
                 BossBadge = BuildBossBadge(headNode),
@@ -446,7 +463,7 @@ public sealed class MapViewModel : INotifyPropertyChanged
             .Where(item => !item.IsHead)
             .OrderBy(item => item.Node.FloorNumber)
             .ThenBy(item => item.Node.OfsX)
-            .Select(item => ToAreaRow(item.Node))
+            .Select(item => ToAreaRow(item.Node, item.Info))
             .ToArray();
 
         Nodes = nodeItems;
@@ -516,8 +533,10 @@ public sealed class MapViewModel : INotifyPropertyChanged
     private static double EstimateLabelWidth(string label) =>
         Math.Max(24d, label.Length * 6.2d + 10d);
 
-    private static MapAreaRow ToAreaRow(MapNode node)
+    private static MapAreaRow ToAreaRow(MapNode node, MapAreaInfo? info)
     {
+        var bossLines = BossDetailLines(node).ToArray();
+        var infoLines = AreaInfoDetailLines(info).ToArray();
         return new MapAreaRow
         {
             Node = node,
@@ -528,8 +547,44 @@ public sealed class MapViewModel : INotifyPropertyChanged
             OffsetLabel = node.OfsX.ToString("0.#"),
             StageId = node.StageId,
             BossLabel = BuildBossBadge(node),
-            BossSummary = string.Join("; ", BossDetailLines(node))
+            BossSummary = string.Join("; ", bossLines),
+            Info = info,
+            RowSummary = string.Join("; ", bossLines.Concat(infoLines))
         };
+    }
+
+    /// <summary>Resolves the curated community row for a node on the selected rotation.</summary>
+    private MapAreaInfo? ResolveAreaInfo(MapNode node)
+    {
+        if (node.IsHead) return null;
+        return _areaInfoCatalog.Resolve(SelectedTemplate, node.FloorNumber, node.AreaName);
+    }
+
+    /// <summary>Compact loot marker drawn below a node: material plus stamp/shop/collectible/trap glyphs.</summary>
+    private static string BuildLootBadge(MapAreaInfo? info)
+    {
+        if (info is null) return string.Empty;
+        var parts = new List<string>(5);
+        if (info.HasMaterial) parts.Add(info.Material);
+        if (info.HasStamp) parts.Add("◎");
+        if (info.HasShop) parts.Add("$");
+        if (info.HasCollectible) parts.Add("▮");
+        if (info.HasTrap) parts.Add("▲");
+        return string.Join(" ", parts);
+    }
+
+    /// <summary>Curated area facts for tooltips and the details panel.</summary>
+    private static IEnumerable<string> AreaInfoDetailLines(MapAreaInfo? info)
+    {
+        if (info is null) yield break;
+        if (info.HasMaterial) yield return $"Materials: {info.Material}";
+        else if (info.Material == MapAreaInfo.NoMaterialMarker) yield return "Materials: none (boss/loot floor)";
+        if (info.HasStamp) yield return "Stamp machine: available";
+        if (info.HasShop) yield return $"Shop: {info.ShopLabel}";
+        if (info.HasCollectible) yield return $"Collectible: {info.CollectibleLabel}";
+        if (info.HasTrap) yield return $"Trap room: {info.Trap} metals";
+        if (info.IsRotationOnly) yield return $"Rotation: {info.RotationLabel}";
+        if (info.HasNotes) yield return $"Note: {info.Notes}";
     }
 
     /// <summary>Short boss marker shown on the map and in the area list (BOSS / FFM).</summary>
@@ -564,7 +619,7 @@ public sealed class MapViewModel : INotifyPropertyChanged
         }
     }
 
-    private string BuildToolTip(TowerMapTemplate template, MapNode node)
+    private string BuildToolTip(TowerMapTemplate template, MapNode node, MapAreaInfo? info)
     {
         if (node.IsHead)
             return $"{TowerMapCatalog.WaitingRoomName}\nThe hub below F1 where every climb starts; the main elevator is docked here.";
@@ -579,6 +634,7 @@ public sealed class MapViewModel : INotifyPropertyChanged
         if (!string.IsNullOrWhiteSpace(node.ElevatorCarLabel))
             lines.Add($"Elevator: {node.ElevatorCarLabel} ({node.ElevatorStopId})");
         lines.AddRange(BossDetailLines(node));
+        lines.AddRange(AreaInfoDetailLines(info));
         var outCount = template.Edges.Count(edge => string.Equals(edge.Key2, node.Key, StringComparison.Ordinal));
         var inCount = template.Edges.Count(edge => string.Equals(edge.TargetKey, node.Key, StringComparison.Ordinal));
         lines.Add($"{outCount:N0} route(s) up · {inCount:N0} route(s) from below");
@@ -610,8 +666,9 @@ public sealed class MapViewModel : INotifyPropertyChanged
     private static string ElevatorEdgeLabel(MapNode node) =>
         node.IsHead ? TowerMapCatalog.WaitingRoomName : $"{DisplayName(node)} (F{node.FloorNumber})";
 
-    private string BuildDetails(MapNode node)
+    private string BuildDetails(MapAreaRow row)
     {
+        var node = row.Node;
         var template = _data?.FindTemplate(SelectedTemplate);
         if (template is null) return string.Empty;
         var stage = TowerMapCatalog.FindStage(node.StageId);
@@ -635,6 +692,12 @@ public sealed class MapViewModel : INotifyPropertyChanged
             ? "Bosses: none for this rotation"
             : "Bosses:");
         foreach (var bossLine in bossLines) lines.Add("  ★ " + bossLine);
+
+        var infoLines = AreaInfoDetailLines(row.Info).ToArray();
+        lines.Add(infoLines.Length == 0
+            ? "Area info: none for this rotation"
+            : "Area info (community sheet):");
+        foreach (var infoLine in infoLines) lines.Add("  · " + infoLine);
 
         var outgoing = template.Edges
             .Where(edge => string.Equals(edge.Key2, node.Key, StringComparison.Ordinal))

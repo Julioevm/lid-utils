@@ -30,6 +30,11 @@ public partial class MapView : UserControl
     private static readonly Brush BossBadgeBackground = new SolidColorBrush(Color.FromRgb(0x21, 0x18, 0x24));
     private static readonly Brush BossBadgeTextBrush = new SolidColorBrush(Color.FromRgb(0xF3, 0xDD, 0xEA));
 
+    // Community area-information badge drawn below a node (materials + marker glyphs).
+    private static readonly Brush LootBadgeBackground = new SolidColorBrush(Color.FromRgb(0x16, 0x1B, 0x23));
+    private static readonly Brush LootBadgeBorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x45, 0x55));
+    private static readonly Brush LootBadgeTextBrush = new SolidColorBrush(Color.FromRgb(0xB9, 0xC2, 0xCF));
+
     // One palette slot per elevator service (car). Slot 0 is always the main tower elevator.
     private static readonly SolidColorBrush[] ElevatorPalette =
     [
@@ -358,6 +363,11 @@ public partial class MapView : UserControl
             DrawBossBadge(node, canvas);
         }
 
+        if (node.HasLoot && (ViewModel?.ShowLootInfo ?? true))
+        {
+            DrawLootBadge(node, canvas);
+        }
+
         if (node.ShowLabel)
         {
             var label = new TextBlock
@@ -409,6 +419,34 @@ public partial class MapView : UserControl
         ToolTipService.SetToolTip(badge, node.ToolTipText);
         Canvas.SetLeft(badge, node.X - width / 2d);
         Canvas.SetTop(badge, node.Y - node.Radius - 16d);
+        canvas.Children.Add(badge);
+    }
+
+    /// <summary>Community loot marker drawn below a node: material name plus marker glyphs.</summary>
+    private static void DrawLootBadge(MapNodeItem node, Canvas canvas)
+    {
+        var width = Math.Max(26d, node.LootBadge.Length * 5.2d + 10d);
+        var badge = new Border
+        {
+            Width = width,
+            Height = 12d,
+            CornerRadius = new CornerRadius(6),
+            Background = LootBadgeBackground,
+            BorderBrush = LootBadgeBorderBrush,
+            BorderThickness = new Thickness(1),
+            IsHitTestVisible = false,
+            Child = new TextBlock
+            {
+                Text = node.LootBadge,
+                FontSize = 7.5d,
+                Foreground = LootBadgeTextBrush,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            }
+        };
+        ToolTipService.SetToolTip(badge, node.ToolTipText);
+        Canvas.SetLeft(badge, node.X - width / 2d);
+        Canvas.SetTop(badge, node.Y + node.Radius + 2d);
         canvas.Children.Add(badge);
     }
 
