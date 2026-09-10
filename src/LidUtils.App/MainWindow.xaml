@@ -124,6 +124,93 @@
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
+                        <TabItem Header="Freezer">
+                            <Grid Margin="12">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Freezer" FontSize="17" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding CharacterSummary}" Foreground="#AEB7C6" Margin="0,4,0,0"/>
+                                    <TextBlock Text="{Binding CharacterStatus}" Foreground="#FFB55A" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <Grid Grid.Row="2">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="300" MinWidth="250" MaxWidth="360"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <Grid>
+                                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <TextBox Text="{Binding CharacterSearch, UpdateSourceTrigger=PropertyChanged}" Padding="9,6" ToolTip="Search fighter name, character ID, or class"/>
+                                            <Button Grid.Column="1" Content="✕" Click="OnClearCharacterSearch" IsEnabled="{Binding HasCharacterSearch}" MinWidth="32" Padding="6" Margin="6,0,0,0" ToolTip="Clear fighter search"/>
+                                        </Grid>
+                                        <Grid Grid.Row="2">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                            <ComboBox ItemsSource="{Binding CharacterStatusOptions}" SelectedItem="{Binding SelectedCharacterStatus}" Padding="6" ToolTip="Filter by fighter status"/>
+                                            <ComboBox Grid.Column="1" ItemsSource="{Binding CharacterSortOptions}" SelectedItem="{Binding SelectedCharacterSort}" Padding="6" Margin="6,0,0,0" ToolTip="Sort fighters"/>
+                                        </Grid>
+                                        <ListBox Grid.Row="4" ItemsSource="{Binding DisplayedCharacters}" SelectedItem="{Binding SelectedCharacter}" IsEnabled="{Binding CanInteract}" Background="#141820" BorderBrush="#343C49" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Padding="10,8" MinWidth="245">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                                <TextBlock Text="{Binding Summary}" Foreground="#AEB7C6" FontSize="11" Margin="0,2,0,0"/>
+                                                                <TextBlock Text="{Binding Status}" Foreground="#75D695" FontSize="11" Margin="0,2,0,0"/>
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="1" Text="●" Foreground="#E8C36A" Margin="8,0,0,0" ToolTip="This fighter has staged changes"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsStaged}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </Grid>
+                                    <Grid Grid.Column="2">
+                                        <TextBlock Text="Select a fighter from the Freezer list." Foreground="#7E8999" HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding HasSelectedCharacter}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <ScrollViewer.Style><Style TargetType="ScrollViewer"><Style.Triggers><DataTrigger Binding="{Binding HasSelectedCharacter}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></ScrollViewer.Style>
+                                            <StackPanel DataContext="{Binding SelectedCharacter}" Margin="0,0,4,0">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                    <StackPanel><TextBlock Text="{Binding DisplayName}" FontSize="22" FontWeight="SemiBold"/><TextBlock Text="{Binding CharacterId}" Foreground="#7E8999" FontSize="11" Margin="0,3,0,0"/></StackPanel>
+                                                    <Border Grid.Column="1" Background="#24382E" BorderBrush="#3E7756" BorderThickness="1" CornerRadius="4" Padding="10,5" VerticalAlignment="Center"><TextBlock Text="{Binding Status}" Foreground="#75D695" FontWeight="SemiBold"/></Border>
+                                                </Grid>
+                                                <Border Margin="0,12,0,0" Padding="14,12" CornerRadius="5" Background="#1B2029" BorderBrush="#343C49" BorderThickness="1">
+                                                    <StackPanel>
+                                                        <TextBlock Text="Profile" FontSize="15" FontWeight="SemiBold"/>
+                                                        <Grid Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="100"/><ColumnDefinition Width="240"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Name" Foreground="#AEB7C6" VerticalAlignment="Center"/><TextBox Grid.Column="1" Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" Padding="7,4" MaxLength="24"/><Button Grid.Column="2" Content="Undo" Click="OnUndoCharacterName" Margin="8,0,0,0"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsStaged}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Button.Style></Button></Grid>
+                                                        <TextBlock Text="{Binding ValidationError}" Foreground="#FF7770" FontSize="11" Margin="100,3,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding ValidationError}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+                                                        <UniformGrid Columns="4" Margin="0,12,0,0">
+                                                            <StackPanel><TextBlock Text="Roster" Foreground="#7E8999" FontSize="11"/><TextBlock Text="{Binding RosterSlotText}" FontWeight="SemiBold"/></StackPanel>
+                                                            <StackPanel><TextBlock Text="Class" Foreground="#7E8999" FontSize="11"/><TextBlock Text="{Binding FighterType}" FontWeight="SemiBold"/></StackPanel>
+                                                            <StackPanel><TextBlock Text="Grade" Foreground="#7E8999" FontSize="11"/><TextBlock Text="{Binding Grade}" FontWeight="SemiBold"/></StackPanel>
+                                                            <StackPanel><TextBlock Text="Limit break" Foreground="#7E8999" FontSize="11"/><TextBlock Text="{Binding LimitBreak}" FontWeight="SemiBold"/></StackPanel>
+                                                        </UniformGrid>
+                                                        <UniformGrid Columns="4" Margin="0,10,0,0">
+                                                            <StackPanel><TextBlock Text="Current HP" Foreground="#7E8999" FontSize="11"/><TextBlock Text="{Binding CurrentHp}"/></StackPanel>
+                                                            <StackPanel><TextBlock Text="Total XP" Foreground="#7E8999" FontSize="11"/><TextBlock Text="{Binding TotalExperience}"/></StackPanel>
+                                                            <StackPanel><TextBlock Text="Kill Coins" Foreground="#7E8999" FontSize="11"/><TextBlock Text="{Binding CarriedMoney}"/></StackPanel>
+                                                            <StackPanel><TextBlock Text="SPLithium" Foreground="#7E8999" FontSize="11"/><TextBlock Text="{Binding CarriedSplithium}"/></StackPanel>
+                                                        </UniformGrid>
+                                                        <TextBlock Text="{Binding Body, StringFormat=Body: {0}}" Foreground="#7E8999" FontSize="11" Margin="0,10,0,0"/>
+                                                        <TextBlock Text="{Binding EquippedDecalsText, StringFormat=Equipped decals: {0}}" Foreground="#7E8999" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                </Border>
+                                                <Border Margin="0,10,0,0" Padding="14,12" CornerRadius="5" Background="#1B2029" BorderBrush="#343C49" BorderThickness="1">
+                                                    <StackPanel><TextBlock Text="Stats" FontSize="15" FontWeight="SemiBold"/><TextBlock Text="Read-only until legal caps and derived formulas are verified." Foreground="#7E8999" FontSize="11" Margin="0,3,0,0"/><ItemsControl ItemsSource="{Binding Stats}" Margin="0,8,0,0"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Border Width="135" Margin="0,0,8,8" Padding="9,7" Background="#161B23" BorderBrush="#2A313D" BorderThickness="1" CornerRadius="3"><StackPanel><TextBlock Text="{Binding Label}" Foreground="#AEB7C6" FontSize="11"/><TextBlock Text="{Binding Value}" FontSize="16" FontWeight="SemiBold"/><TextBlock Text="{Binding Bonus, StringFormat=Bonus: {0}}" Foreground="#75D695" FontSize="10"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding Bonus}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel>
+                                                </Border>
+                                                <Border Margin="0,10,0,0" Padding="14,12" CornerRadius="5" Background="#1B2029" BorderBrush="#343C49" BorderThickness="1">
+                                                    <StackPanel>
+                                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Death Bag" FontSize="15" FontWeight="SemiBold"/><TextBlock Text="{Binding BagSummary}" Foreground="#AEB7C6" Margin="0,3,0,0"/></StackPanel><ComboBox Grid.Column="1" DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type TabControl}}}" ItemsSource="{Binding CharacterBagExpansionOptions}" SelectedItem="{Binding SelectedCharacterBagExpansion}" Width="62" Padding="5" VerticalContentAlignment="Center" ToolTip="Slots to add"/><Button Grid.Column="2" DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type TabControl}}}" Content="{Binding CharacterBagExpansionButtonText}" IsEnabled="{Binding CanExpandCharacterBag}" Click="OnExpandCharacterBag" Margin="7,0,0,0"/></Grid>
+                                                        <DataGrid ItemsSource="{Binding DeathBag}" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False" Height="250" Margin="0,10,0,0" EnableRowVirtualization="True"><DataGrid.Columns><DataGridTextColumn Header="Slot" Binding="{Binding Slot}" Width="55"/><DataGridTextColumn Header="Item" Binding="{Binding ItemName}" Width="*"/><DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="105"/><DataGridTextColumn Header="Equipped" Binding="{Binding Equipped}" Width="120"/><DataGridTextColumn Header="Definition" Binding="{Binding DefinitionId}" Width="160"/><DataGridTemplateColumn Header="!" Width="35"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="⚠" Foreground="#FFB55A" ToolTip="{Binding WarningText}"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding HasWarnings}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn></DataGrid.Columns></DataGrid>
+                                                    </StackPanel>
+                                                </Border>
+                                                <Border Margin="0,10,0,0" Padding="12" Background="#382A1D" BorderBrush="#6D5332" BorderThickness="1" CornerRadius="5"><Border.Style><Style TargetType="Border"><Style.Triggers><DataTrigger Binding="{Binding HasWarnings}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Border.Style><StackPanel><TextBlock Text="Data warnings" Foreground="#FFB55A" FontWeight="SemiBold"/><TextBlock Text="{Binding WarningText}" Foreground="#E7C99A" TextWrapping="Wrap" Margin="0,4,0,0"/></StackPanel></Border>
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </Grid>
+                                </Grid>
+                            </Grid>
+                        </TabItem>
                         <TabItem Header="Storage">
                             <Grid Margin="12">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/></Grid.RowDefinitions>

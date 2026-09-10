@@ -45,6 +45,9 @@ public static class StorageEngine
                 case ExpandDeathBagsOperation expandBags:
                     ExpandDeathBags(root, uid, expandBags);
                     break;
+                case ExpandCharacterDeathBagOperation expandCharacterBag:
+                    ExpandCharacterDeathBag(root, uid, expandCharacterBag);
+                    break;
                 case SetStorageSlotOperation set:
                     SetSlot(root, locker, uid, set);
                     break;
@@ -176,6 +179,30 @@ public static class StorageEngine
             for (var index = firstNewSlot; index < firstNewSlot + rowsToAdd; index++)
                 bag.Add(EmptyBagRow(bag, uid, cid, index));
         }
+    }
+
+    private static void ExpandCharacterDeathBag(JsonObject root, int uid, ExpandCharacterDeathBagOperation operation)
+    {
+        if (string.IsNullOrWhiteSpace(operation.CharacterId))
+            throw new InvalidOperationException("A fighter must be selected before expanding a Death Bag.");
+        if (!ExpandCharacterDeathBagOperation.AllowedSlotCounts.Contains(operation.SlotCount))
+            throw new InvalidOperationException("A fighter Death Bag can only be expanded by 1, 5, or 10 slots.");
+        var key = uid.ToString(CultureInfo.InvariantCulture);
+        var ownedBags = root["soul"]?["deathbag"]?[key] as JsonObject
+            ?? throw new InvalidOperationException("The save does not contain Death Bags for the active player.");
+        var bag = ownedBags[operation.CharacterId] as JsonArray
+            ?? throw new InvalidOperationException($"Fighter '{operation.CharacterId}' does not have a Death Bag.");
+        if (bag.Count + operation.SlotCount > ExpandCharacterDeathBagOperation.MaximumRowsPerBag)
+            throw new InvalidOperationException($"A fighter Death Bag cannot exceed {ExpandCharacterDeathBagOperation.MaximumRowsPerBag} slots.");
+
+        var existingSlots = bag.OfType<JsonObject>()
+            .Select(row => RequireInt(row, "slot", "Death Bag slot"))
+            .ToArray();
+        if (existingSlots.Distinct().Count() != existingSlots.Length)
+            throw new InvalidOperationException("The selected fighter's Death Bag contains duplicate slot IDs.");
+        var nextSlot = existingSlots.Length == 0 ? 0 : checked(existingSlots.Max() + 1);
+        for (var index = 0; index < operation.SlotCount; index++)
+            bag.Add(EmptyBagRow(bag, uid, operation.CharacterId, checked(nextSlot + index)));
     }
 
     private static JsonObject EmptyBagRow(JsonArray bag, int uid, string cid, int slotIndex)

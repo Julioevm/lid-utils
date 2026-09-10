@@ -33,6 +33,13 @@ public sealed record ExpandDeathBagsOperation(int RowsPerBag = 10) : StorageOper
     public const int MaximumRowsPerBag = 70;
 }
 
+/// <summary>Adds empty Death Bag slots to one owned fighter.</summary>
+public sealed record ExpandCharacterDeathBagOperation(string CharacterId, int SlotCount = 5) : StorageOperation
+{
+    public const int MaximumRowsPerBag = ExpandDeathBagsOperation.MaximumRowsPerBag;
+    public static readonly IReadOnlyList<int> AllowedSlotCounts = [1, 5, 10];
+}
+
 public sealed record StorageSlot(
     int Slot,
     int Type,

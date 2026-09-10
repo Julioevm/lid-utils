@@ -353,6 +353,18 @@ public partial class MainWindow : Window
     private void OnExpandStorage(object sender, RoutedEventArgs e) =>
         _viewModel.SaveEditor.StageStorageExpansion();
 
+    private void OnClearCharacterSearch(object sender, RoutedEventArgs e) =>
+        _viewModel.SaveEditor.ClearCharacterSearch();
+
+    private void OnExpandCharacterBag(object sender, RoutedEventArgs e) =>
+        _viewModel.SaveEditor.StageCharacterDeathBagExpansion();
+
+    private void OnUndoCharacterName(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: CharacterRow row })
+            _viewModel.SaveEditor.UndoCharacterName(row);
+    }
+
     private void OnUndoLastStorageOperation(object sender, RoutedEventArgs e) =>
         _viewModel.SaveEditor.UndoLastStorageOperation();
 

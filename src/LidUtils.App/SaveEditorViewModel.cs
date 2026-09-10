@@ -50,6 +50,15 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     private IReadOnlyList<DecalCollectionRow> _displayedDecals = [];
     private Dictionary<string, DecalDefinition> _decalDefinitions = new(StringComparer.Ordinal);
     private DecalInventory? _decalInventory;
+    private CharacterInventory? _characterInventory;
+    private IReadOnlyList<CharacterRow> _allCharacters = [];
+    private IReadOnlyList<CharacterRow> _displayedCharacters = [];
+    private CharacterRow? _selectedCharacter;
+    private string _characterSearch = string.Empty;
+    private string _selectedCharacterStatus = "All statuses";
+    private string _selectedCharacterSort = "Roster order";
+    private int _selectedCharacterBagExpansion = ExpandCharacterDeathBagOperation.AllowedSlotCounts[1];
+    private string _characterStatus = "Load a save to inspect fighters.";
     private string _decalSearch = string.Empty;
     private bool _isDecalPremiumOnly;
     private bool _isDecalOwnedHidden;
@@ -126,6 +135,80 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         get => _displayedDecals;
         private set => SetField(ref _displayedDecals, value);
     }
+
+    public IReadOnlyList<CharacterRow> DisplayedCharacters
+    {
+        get => _displayedCharacters;
+        private set => SetField(ref _displayedCharacters, value);
+    }
+
+    public IReadOnlyList<string> CharacterStatusOptions { get; } =
+        ["All statuses", "In use", "Freezer", "Defender", "Dead", "Unknown"];
+    public IReadOnlyList<string> CharacterSortOptions { get; } =
+        ["Roster order", "Name", "Grade", "Status"];
+    public IReadOnlyList<int> CharacterBagExpansionOptions => ExpandCharacterDeathBagOperation.AllowedSlotCounts;
+
+    public string CharacterSearch
+    {
+        get => _characterSearch;
+        set
+        {
+            if (!SetField(ref _characterSearch, value)) return;
+            ApplyCharacterFilter();
+            OnPropertyChanged(nameof(HasCharacterSearch));
+        }
+    }
+
+    public string SelectedCharacterStatus
+    {
+        get => _selectedCharacterStatus;
+        set
+        {
+            if (!SetField(ref _selectedCharacterStatus, value)) return;
+            ApplyCharacterFilter();
+        }
+    }
+
+    public string SelectedCharacterSort
+    {
+        get => _selectedCharacterSort;
+        set
+        {
+            if (!SetField(ref _selectedCharacterSort, value)) return;
+            ApplyCharacterFilter();
+        }
+    }
+
+    public CharacterRow? SelectedCharacter
+    {
+        get => _selectedCharacter;
+        set
+        {
+            if (!SetField(ref _selectedCharacter, value)) return;
+            OnPropertyChanged(nameof(HasSelectedCharacter));
+            OnPropertyChanged(nameof(CanExpandCharacterBag));
+        }
+    }
+
+    public int SelectedCharacterBagExpansion
+    {
+        get => _selectedCharacterBagExpansion;
+        set
+        {
+            if (!SetField(ref _selectedCharacterBagExpansion, value)) return;
+            OnPropertyChanged(nameof(CharacterBagExpansionButtonText));
+        }
+    }
+
+    public bool HasCharacterInventory => _characterInventory is not null;
+    public bool HasSelectedCharacter => SelectedCharacter is not null;
+    public bool HasCharacterSearch => !string.IsNullOrWhiteSpace(CharacterSearch);
+    public bool CanExpandCharacterBag => CanInteract && SelectedCharacter is not null && SelectedCharacter.BagCapacity < ExpandCharacterDeathBagOperation.MaximumRowsPerBag;
+    public string CharacterBagExpansionButtonText => $"Add {SelectedCharacterBagExpansion:N0} slots";
+    public string CharacterSummary => _characterInventory is null
+        ? "Characters are unavailable for this save."
+        : $"{DisplayedCharacters.Count:N0} of {_allCharacters.Count:N0} fighter(s) shown · player {_characterInventory.PlayerUid}";
+    public string CharacterStatus => _characterStatus;
 
     public string DecalSearch
     {
@@ -325,6 +408,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(CanShowStagedChanges));
             OnPropertyChanged(nameof(CanExportJson));
             OnPropertyChanged(nameof(CanRestoreSaveBackup));
+            OnPropertyChanged(nameof(CanExpandCharacterBag));
             NotifyStorageCommandStateChanged();
         }
     }
@@ -378,6 +462,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         foreach (var field in WaitingRoomFields) field.SyncFromStaging(_staging);
         foreach (var field in AccountFields) field.SyncFromStaging(_staging);
         foreach (var decal in _allDecals) decal.SyncFromStaging(_staging);
+        foreach (var character in _allCharacters) character.SyncFromStaging(_staging);
         if (Vip is not null)
         {
             SyncVipPointers();
@@ -546,6 +631,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         }
 
         _storageOperations.Add(operation);
+        RebuildCharacterRows(SelectedCharacter?.CharacterId);
         RefreshStorageOperations();
         return true;
     }
@@ -678,6 +764,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         }
 
         await LoadDecalDefinitionsAsync(databasePath, cancellationToken);
+        RebuildCharacterRows();
     });
 
     /// <summary>Resolves decal definitions from the validated masters.db and refreshes loaded rows.</summary>
@@ -786,6 +873,149 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     }
 
     public void ClearDecalSearch() => DecalSearch = string.Empty;
+
+    public void ClearCharacterSearch() => CharacterSearch = string.Empty;
+
+    public void StageCharacterDeathBagExpansion()
+    {
+        if (!CanExpandCharacterBag || SelectedCharacter is null) return;
+        StageStorageOperation(new ExpandCharacterDeathBagOperation(
+            SelectedCharacter.CharacterId,
+            SelectedCharacterBagExpansion));
+    }
+
+    private void StageCharacterName(CharacterRow row, string value)
+    {
+        if (value.Length > CharacterRow.MaximumNameLength || value.Any(char.IsControl))
+        {
+            _staging.Reset(row.NameEntry.Pointer);
+            row.ValidationError = $"Use at most {CharacterRow.MaximumNameLength} characters and no control characters.";
+            row.SyncFromStaging(_staging);
+            RefreshPendingChanges();
+            return;
+        }
+
+        var outcome = _staging.Stage(row.NameEntry, value);
+        row.ValidationError = outcome.Error ?? string.Empty;
+        row.IsStaged = outcome.Change is not null;
+        RefreshPendingChanges();
+    }
+
+    public void UndoCharacterName(CharacterRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        _staging.Reset(row.NameEntry.Pointer);
+        row.ValidationError = string.Empty;
+        row.SyncFromStaging(_staging);
+        RefreshPendingChanges();
+    }
+
+    private void LoadCharacterInventory(SaveFileSnapshot snapshot)
+    {
+        _characterInventory = null;
+        _allCharacters = [];
+        DisplayedCharacters = [];
+        SelectedCharacter = null;
+        if (string.IsNullOrWhiteSpace(snapshot.Json))
+        {
+            _characterStatus = "This save snapshot has no decoded JSON.";
+        }
+        else
+        {
+            try
+            {
+                _characterInventory = CharacterInventory.Read(snapshot.Json);
+                _characterStatus = _characterInventory.Warnings.Count == 0
+                    ? "Character records joined successfully. Progression values are read-only in this release."
+                    : $"Character records loaded with {_characterInventory.Warnings.Count:N0} warning(s): " +
+                      string.Join(" · ", _characterInventory.Warnings.Take(3));
+                RebuildCharacterRows();
+            }
+            catch (Exception exception)
+            {
+                _characterStatus = $"Characters could not be read safely: {exception.Message}";
+            }
+        }
+        OnPropertyChanged(nameof(CharacterStatus));
+        OnPropertyChanged(nameof(HasCharacterInventory));
+        OnPropertyChanged(nameof(CharacterSummary));
+        OnPropertyChanged(nameof(CanExpandCharacterBag));
+    }
+
+    private void RebuildCharacterRows(string? preferredCharacterId = null)
+    {
+        preferredCharacterId ??= SelectedCharacter?.CharacterId;
+        if (_characterInventory is null)
+        {
+            _allCharacters = [];
+            DisplayedCharacters = [];
+            SelectedCharacter = null;
+            return;
+        }
+
+        _allCharacters = _characterInventory.Characters.Select(character =>
+        {
+            if (!_entriesByPointer.TryGetValue(character.NamePointer, out var nameEntry) || nameEntry.Type != SaveValueType.String)
+            {
+                nameEntry = new SaveValueEntry(character.NamePointer, character.NamePointer, SaveValueType.String, character.Name);
+            }
+            return new CharacterRow(character, nameEntry, ResolveBagName, StageCharacterName);
+        }).ToArray();
+        foreach (var row in _allCharacters)
+        {
+            row.SyncFromStaging(_staging);
+            if (_storageOperations.OfType<ExpandCharacterDeathBagOperation>()
+                .Any(operation => operation.CharacterId == row.CharacterId))
+                row.IsStaged = true;
+        }
+        ApplyCharacterFilter(preferredCharacterId);
+    }
+
+    private string? ResolveBagName(CharacterBagSlot slot)
+    {
+        if (slot.DefinitionId is null || ItemCatalog.Result is null) return slot.DefinitionId;
+        var category = slot.Type switch
+        {
+            0 => ItemCatalogCategory.Equipment,
+            1 => ItemCatalogCategory.Mushroom,
+            2 => ItemCatalogCategory.Beast,
+            3 => ItemCatalogCategory.Item,
+            _ => (ItemCatalogCategory?)null
+        };
+        return ItemCatalog.Result.Entries.FirstOrDefault(entry =>
+            entry.Category == category && string.Equals(entry.DefinitionId, slot.DefinitionId, StringComparison.Ordinal))?.DisplayName
+            ?? slot.DefinitionId;
+    }
+
+    private void ApplyCharacterFilter(string? preferredCharacterId = null)
+    {
+        preferredCharacterId ??= SelectedCharacter?.CharacterId;
+        IEnumerable<CharacterRow> rows = _allCharacters;
+        var term = CharacterSearch.Trim();
+        if (term.Length > 0)
+        {
+            rows = rows.Where(row => row.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                                     row.CharacterId.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                                     row.FighterType.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+        if (SelectedCharacterStatus != "All statuses")
+        {
+            rows = SelectedCharacterStatus == "Unknown"
+                ? rows.Where(row => row.Status.StartsWith("Unknown", StringComparison.Ordinal))
+                : rows.Where(row => row.Status == SelectedCharacterStatus);
+        }
+        rows = SelectedCharacterSort switch
+        {
+            "Name" => rows.OrderBy(row => row.DisplayName, StringComparer.OrdinalIgnoreCase),
+            "Grade" => rows.OrderByDescending(row => row.GradeNumber).ThenBy(row => row.DisplayName, StringComparer.OrdinalIgnoreCase),
+            "Status" => rows.OrderBy(row => row.Status, StringComparer.OrdinalIgnoreCase).ThenBy(row => row.DisplayName, StringComparer.OrdinalIgnoreCase),
+            _ => rows.OrderBy(row => row.RosterSlot ?? int.MaxValue).ThenBy(row => row.DisplayName, StringComparer.OrdinalIgnoreCase)
+        };
+        DisplayedCharacters = rows.ToArray();
+        SelectedCharacter = DisplayedCharacters.FirstOrDefault(row => row.CharacterId == preferredCharacterId)
+                            ?? DisplayedCharacters.FirstOrDefault();
+        OnPropertyChanged(nameof(CharacterSummary));
+    }
 
     /// <summary>
     /// Stages a grant for a never-owned decal. Grants are structural appends to
@@ -1022,6 +1252,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
             return;
         }
         _storageOperations.Add(operation);
+        RebuildCharacterRows(SelectedCharacter?.CharacterId);
         RefreshStorageOperations();
     }
 
@@ -1094,6 +1325,10 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         Vip = BuildVipSection();
         Overview = BuildOverview();
         LoadStorageInventory(snapshot);
+        CharacterSearch = string.Empty;
+        SelectedCharacterStatus = CharacterStatusOptions[0];
+        SelectedCharacterSort = CharacterSortOptions[0];
+        LoadCharacterInventory(snapshot);
         LoadDecalInventory(snapshot);
         SearchText = string.Empty;
         ApplyFilter();
@@ -1135,6 +1370,11 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         StorageSlots.Clear();
         PendingStorageOperations.Clear();
         _decalInventory = null;
+        _characterInventory = null;
+        _allCharacters = [];
+        DisplayedCharacters = [];
+        SelectedCharacter = null;
+        _characterStatus = "Load a save to inspect fighters.";
         _allDecals = [];
         DisplayedDecals = [];
         ChangeReviewRows.Clear();
@@ -1153,6 +1393,9 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasDecalInventory));
         OnPropertyChanged(nameof(DecalSummary));
         OnPropertyChanged(nameof(DecalStatus));
+        OnPropertyChanged(nameof(HasCharacterInventory));
+        OnPropertyChanged(nameof(CharacterSummary));
+        OnPropertyChanged(nameof(CharacterStatus));
         OnPropertyChanged(nameof(CanApply));
         OnPropertyChanged(nameof(CanShowStagedChanges));
         RefreshChangeReviewRows();
@@ -1168,6 +1411,13 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         foreach (var field in WaitingRoomFields) field.SyncFromStaging(_staging);
         foreach (var field in AccountFields) field.SyncFromStaging(_staging);
         foreach (var decal in _allDecals) decal.SyncFromStaging(_staging);
+        foreach (var character in _allCharacters)
+        {
+            character.SyncFromStaging(_staging);
+            if (_storageOperations.OfType<ExpandCharacterDeathBagOperation>()
+                .Any(operation => operation.CharacterId == character.CharacterId))
+                character.IsStaged = true;
+        }
         if (Vip is not null)
         {
             Vip.IsStaged = VipPointers.Any(pointer => _staging.Get(pointer) is not null) ||
@@ -1285,6 +1535,8 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
             var previewJson = StorageEngine.Apply(_snapshot.Json, operations.ToArray());
             _storageInventory = StorageEngine.Read(previewJson);
             PopulateStorageSlots(_storageInventory, SelectedStorageSlot?.Slot);
+            _characterInventory = CharacterInventory.Read(previewJson);
+            RebuildCharacterRows(SelectedCharacter?.CharacterId);
             OnPropertyChanged(nameof(HasStorageInventory));
             OnPropertyChanged(nameof(StorageSummary));
             return true;
@@ -1326,6 +1578,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
             // The selected, validated database may arrive after the save. Rebuild names only;
             // staged operations continue to use their already validated templates.
             if (_storageInventory is not null) PopulateStorageSlots(_storageInventory, SelectedStorageSlot?.Slot);
+            if (_characterInventory is not null) RebuildCharacterRows();
         }
 
         if (eventArgs.PropertyName is nameof(ItemCatalogViewModel.HasCatalog) or nameof(ItemCatalogViewModel.SelectedItem) or nameof(ItemCatalogViewModel.HasSupportedSelection))
@@ -1512,6 +1765,117 @@ public sealed record SaveOverviewSection(string Title, IReadOnlyList<SaveOvervie
 
 public sealed record SaveOverviewValue(string Label, string Value);
 
+public sealed class CharacterRow : INotifyPropertyChanged
+{
+    public const int MaximumNameLength = 24;
+    private readonly Action<CharacterRow, string> _nameChanged;
+    private string _draftName;
+    private string _validationError = string.Empty;
+    private bool _isStaged;
+
+    public CharacterRow(CharacterRecord character, SaveValueEntry nameEntry,
+        Func<CharacterBagSlot, string?> resolveBagName, Action<CharacterRow, string> nameChanged)
+    {
+        Character = character;
+        NameEntry = nameEntry;
+        _draftName = character.Name;
+        _nameChanged = nameChanged;
+        DeathBag = character.DeathBag.Select(slot => new CharacterBagSlotRow(slot, resolveBagName(slot))).ToArray();
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    public CharacterRecord Character { get; }
+    public SaveValueEntry NameEntry { get; }
+    public string CharacterId => Character.CharacterId;
+    public string Status => Character.Status;
+    public string FighterType => Character.FighterType;
+    public string Body => Character.Body;
+    public string Grade => Character.Grade;
+    public int GradeNumber => int.TryParse(Grade, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : -1;
+    public string LimitBreak => Character.LimitBreak;
+    public string CurrentHp => Character.CurrentHp;
+    public string TotalExperience => Character.TotalExperience;
+    public string CarriedMoney => Character.CarriedMoney;
+    public string CarriedSplithium => Character.CarriedSplithium;
+    public string CarriedBloodnium => Character.CarriedBloodnium;
+    public int? RosterSlot => Character.RosterSlot;
+    public string RosterSlotText => RosterSlot is { } slot ? $"Slot {slot + 1}" : "Not in roster";
+    public IReadOnlyList<CharacterStat> Stats => Character.Stats;
+    public IReadOnlyList<CharacterBagSlotRow> DeathBag { get; }
+    public int BagCapacity => DeathBag.Count;
+    public int BagOccupied => DeathBag.Count(slot => slot.IsOccupied);
+    public string BagSummary => $"{BagOccupied:N0} / {BagCapacity:N0} occupied";
+    public string EquippedDecalsText => Character.EquippedDecals.Count == 0 ? "None" : string.Join(", ", Character.EquippedDecals);
+    public bool HasWarnings => Character.Warnings.Count > 0 || DeathBag.Any(slot => slot.HasWarnings);
+    public string WarningText => string.Join(Environment.NewLine,
+        Character.Warnings.Concat(DeathBag.SelectMany(slot => slot.Warnings)).Distinct());
+    public string DisplayName => string.IsNullOrWhiteSpace(DraftName) ? "Unnamed fighter" : DraftName;
+    public string Summary => $"Grade {Grade} · {FighterType} · {RosterSlotText}";
+    public string DraftName
+    {
+        get => _draftName;
+        set
+        {
+            if (!SetField(ref _draftName, value ?? string.Empty)) return;
+            OnPropertyChanged(nameof(DisplayName));
+            _nameChanged(this, _draftName);
+        }
+    }
+    public string ValidationError { get => _validationError; set => SetField(ref _validationError, value); }
+    public bool IsStaged { get => _isStaged; set => SetField(ref _isStaged, value); }
+
+    public void SyncFromStaging(SaveChangeStagingService staging)
+    {
+        var change = staging.Get(NameEntry.Pointer);
+        SetField(ref _draftName, change?.ProposedValue ?? Character.Name, nameof(DraftName));
+        OnPropertyChanged(nameof(DisplayName));
+        IsStaged = change is not null;
+    }
+
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        field = value;
+        OnPropertyChanged(propertyName);
+        return true;
+    }
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+}
+
+public sealed class CharacterBagSlotRow
+{
+    public CharacterBagSlotRow(CharacterBagSlot slot, string? resolvedName)
+    {
+        Slot = slot.Slot;
+        Type = slot.Type;
+        EntityId = slot.EntityId;
+        DefinitionId = slot.DefinitionId;
+        ItemName = slot.IsOccupied ? resolvedName ?? slot.DefinitionId ?? "Unresolved item" : "Empty";
+        Site = slot.Site;
+        ArmSlot = slot.ArmSlot;
+        Warnings = slot.Warnings;
+    }
+
+    public int Slot { get; }
+    public int Type { get; }
+    public string? EntityId { get; }
+    public string? DefinitionId { get; }
+    public string ItemName { get; }
+    public string? Site { get; }
+    public int? ArmSlot { get; }
+    public IReadOnlyList<string> Warnings { get; }
+    public bool IsOccupied => !string.IsNullOrWhiteSpace(EntityId);
+    public bool HasWarnings => Warnings.Count > 0;
+    public string WarningText => string.Join(Environment.NewLine, Warnings);
+    public string Category => Type switch
+    {
+        -1 => "Empty", 0 => "Equipment", 1 => "Mushroom", 2 => "Beast", 3 => "Item", _ => $"Type {Type}"
+    };
+    public string Equipped => string.IsNullOrWhiteSpace(Site) ? "—" : Site;
+}
+
 public sealed class StorageSlotRow
 {
     public StorageSlotRow(StorageSlot slot, string? resolvedName = null, string? resolvedCategory = null)
@@ -1544,6 +1908,7 @@ public sealed record StorageOperationReviewRow(string Operation, string Details)
     {
         ExpandStorageOperation expand => new("Expand storage", $"Add {expand.SlotCount:N0} empty storage slots."),
         ExpandDeathBagsOperation expandBags => new("Expand Death Bags", $"Add {expandBags.RowsPerBag:N0} empty Death Bag slots to each owned fighter."),
+        ExpandCharacterDeathBagOperation expandCharacterBag => new("Expand fighter Death Bag", $"Add {expandCharacterBag.SlotCount:N0} empty slots to fighter {expandCharacterBag.CharacterId}."),
         ClearStorageSlotOperation clear => new("Clear storage slot", $"Remove the item reference from slot {clear.Slot:N0}."),
         SetStorageSlotOperation set => new("Add or replace storage slot", $"Slot {set.Slot:N0}: {set.Template.Name} ({set.Template.DefinitionId})."),
         _ => new("Storage operation", operation.ToString() ?? "Pending storage edit")
