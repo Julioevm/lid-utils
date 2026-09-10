@@ -88,18 +88,31 @@ duplicate fighters in the list.
 - Show the Death Bag with human-readable names resolved through the existing item
   catalog and entity tables.
 - Expand the selected fighter's Death Bag by 1, 5, or 10 slots, capped at 70,
-  through a new selected-fighter operation. Keep the existing VIP action that
-  expands every owned fighter unchanged.
+  through a new selected-fighter operation. This reserves the final 10 slots for
+  the VIP expansion, which has a separate absolute ceiling of 80 slots.
 - Surface broken joins, duplicate IDs, invalid slots, unresolved entities, and
   owner/reference inconsistencies as non-destructive warnings.
 
-### Version 2 — bounded character management
+### Version 2 — bounded character management (stat allocations implemented)
+
+The six allocated body-stat levels (HP, STR, DEX, VIT, STM, and LUK) can be
+edited when the selected validated `masters.db` provides an exact
+`master_body_detail(type, grade, limit_break)` definition. The editor uses
+`param_lv_max` as the only cap authority and refuses missing/unsupported
+combinations or values outside `1..cap`; it never silently clamps an existing
+save value. It stages the edited stat and the body `lvl` scalar together. The
+level rule preserves unlock progression: `new lvl = original lvl + sum(draft
+primary stats - original primary stats)`, so skill/bag/rage contributions remain
+untouched. G7–G9 effective variants are represented by the game's grade-6
+limit-break 2–4 master rows. Bonuses, current HP, XP, grade, limit break, skill,
+bag, and rage remain read-only.
+
+Remaining bounded character-management work:
 
 Add these only after controlled save pairs establish every companion mutation:
 
 - move a fighter between **Freezer**, **In use**, and **Defender**;
 - change roster slot with collision handling and exactly-one-active validation;
-- edit legal stat allocations and stage all dependent fields as one operation;
 - restore/recover a dead fighter;
 - equip and unequip decals per fighter.
 
@@ -137,7 +150,8 @@ ExpandCharacterDeathBagOperation(CharacterId, SlotCount)
 
 It must resolve UID at apply time, find the bag by `cid`, preserve the existing row
 shape, allocate unique sequential slot numbers, validate `SlotCount`, and enforce
-the 70-row cap.
+the 70-row manual cap. The account-wide VIP operation alone may grow a bag from
+70 to the absolute 80-row ceiling.
 
 ### 2. Data — names and safe apply
 

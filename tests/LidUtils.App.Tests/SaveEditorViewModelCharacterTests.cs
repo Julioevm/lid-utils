@@ -48,6 +48,29 @@ public sealed class SaveEditorViewModelCharacterTests
     }
 
     [Fact]
+    public async Task SelectedBagExpansion_DisablesAnAdditionThatWouldCrossSeventySlots()
+    {
+        var service = new RecordingService(Snapshot());
+        var viewModel = new SaveEditorViewModel(service);
+        await viewModel.SelectPathAsync(service.Snapshot.Path);
+        viewModel.SelectedCharacterBagExpansion = 10;
+
+        for (var attempt = 0; attempt < 6; attempt++)
+            viewModel.StageCharacterDeathBagExpansion();
+
+        Assert.Equal(61, viewModel.SelectedCharacter!.BagCapacity);
+        Assert.False(viewModel.CanExpandCharacterBag);
+        Assert.Equal(6, viewModel.PendingStorageOperations.Count);
+
+        viewModel.StageCharacterDeathBagExpansion();
+        Assert.Equal(61, viewModel.SelectedCharacter.BagCapacity);
+        Assert.Equal(6, viewModel.PendingStorageOperations.Count);
+
+        viewModel.SelectedCharacterBagExpansion = 5;
+        Assert.True(viewModel.CanExpandCharacterBag);
+    }
+
+    [Fact]
     public async Task Apply_SendsNameAndBagChangesTogether()
     {
         var service = new RecordingService(Snapshot());

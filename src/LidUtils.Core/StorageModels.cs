@@ -30,13 +30,14 @@ public sealed record ClearStorageSlotOperation(int Slot) : StorageOperation;
 /// </summary>
 public sealed record ExpandDeathBagsOperation(int RowsPerBag = 10) : StorageOperation
 {
-    public const int MaximumRowsPerBag = 70;
+    /// <summary>Absolute Death Bag ceiling after the Royal Express VIP bonus.</summary>
+    public const int MaximumRowsPerBag = 80;
 }
 
-/// <summary>Adds empty Death Bag slots to one owned fighter.</summary>
+/// <summary>Adds empty Death Bag slots to one owned fighter, reserving ten slots for VIP.</summary>
 public sealed record ExpandCharacterDeathBagOperation(string CharacterId, int SlotCount = 5) : StorageOperation
 {
-    public const int MaximumRowsPerBag = ExpandDeathBagsOperation.MaximumRowsPerBag;
+    public const int MaximumRowsPerBag = 70;
     public static readonly IReadOnlyList<int> AllowedSlotCounts = [1, 5, 10];
 }
 

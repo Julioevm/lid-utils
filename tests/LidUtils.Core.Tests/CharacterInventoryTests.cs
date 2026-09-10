@@ -42,6 +42,8 @@ public sealed class CharacterInventoryTests
         Assert.Equal("In use", active.Status);
         Assert.Equal(0, active.RosterSlot);
         Assert.Equal("7", active.Stats.Single(stat => stat.Label == "Level").Value);
+        Assert.Equal("/bodyuser/424242/0", active.BodyStatsPointer);
+        Assert.Equal("/bodyuser/424242/0/hp", active.Stats.Single(stat => stat.Label == "HP").Pointer);
         Assert.Equal("SKL_ONE", Assert.Single(active.EquippedDecals));
         var item = Assert.Single(active.DeathBag);
         Assert.Equal("IT_HEAL", item.DefinitionId);
@@ -87,6 +89,20 @@ public sealed class CharacterInventoryTests
         Assert.Equal(5, last["slot"]!.GetValue<int>());
         Assert.Equal(-1, last["type"]!.GetValue<int>());
         Assert.Equal(string.Empty, last["eid"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void Apply_SelectedFighterExpansion_RejectsGoingAboveTheManualSeventySlotLimit()
+    {
+        var root = JsonNode.Parse(SaveJson())!.AsObject();
+        var bag = root["soul"]!["deathbag"]!["424242"]!["active"]!.AsArray();
+        for (var slot = bag.Count; bag.Count < 65; slot++)
+            bag.Add(new JsonObject { ["uid"] = 424242, ["cid"] = "active", ["slot"] = slot, ["type"] = -1, ["eid"] = "", ["site"] = "", ["arm_slot"] = -1 });
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            StorageEngine.Apply(root.ToJsonString(), [new ExpandCharacterDeathBagOperation("active", 10)]));
+
+        Assert.Contains("cannot exceed 70", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]

@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 
 namespace LidUtils.Core;
 
-public sealed record CharacterStat(string Label, string Value, string? Bonus = null);
+public sealed record CharacterStat(string Label, string Value, string? Bonus = null, string? Pointer = null);
 
 public sealed record CharacterBagSlot(
     int Slot,
@@ -38,7 +38,8 @@ public sealed record CharacterRecord(
     IReadOnlyList<CharacterStat> Stats,
     IReadOnlyList<CharacterBagSlot> DeathBag,
     IReadOnlyList<string> EquippedDecals,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings,
+    string? BodyStatsPointer = null);
 
 public sealed record CharacterInventory(
     int PlayerUid,
@@ -113,7 +114,8 @@ internal static class CharacterInventoryReader
 
             var characterWarnings = new List<string>();
             roster.TryGetValue(cid, out var rosterSlot);
-            bodies.TryGetValue(cid, out var bodyStats);
+            bodies.TryGetValue(cid, out var bodyRow);
+            var bodyStats = bodyRow?.Value;
             if (bodyStats is null) characterWarnings.Add("Allocated body stats are missing.");
             var bag = bags?[cid] as JsonArray;
             if (bag is null) characterWarnings.Add("Death Bag data is missing.");
@@ -145,10 +147,11 @@ internal static class CharacterInventoryReader
                 Scalar(fighter["money"]),
                 Scalar(fighter["spirit"]),
                 Scalar(fighter["bloodnium"]),
-                ReadStats(bodyStats),
+                ReadStats(bodyStats, bodyRow is null ? null : $"/bodyuser/{key}/{bodyRow.Index}"),
                 slots,
                 equipped.TryGetValue(cid, out var skills) ? skills : [],
-                characterWarnings));
+                characterWarnings,
+                bodyRow is null ? null : $"/bodyuser/{key}/{bodyRow.Index}"));
         }
 
         return new CharacterInventory(uid,
@@ -205,19 +208,22 @@ internal static class CharacterInventoryReader
         return result;
     }
 
-    private static Dictionary<string, JsonObject> IndexByCharacterId(JsonNode? node, string path, ICollection<string> warnings)
+    private sealed record BodyRow(int Index, JsonObject Value);
+
+    private static Dictionary<string, BodyRow> IndexByCharacterId(JsonNode? node, string path, ICollection<string> warnings)
     {
-        var result = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
+        var result = new Dictionary<string, BodyRow>(StringComparer.Ordinal);
         if (node is null || node is JsonObject { Count: 0 }) return result;
         if (node is not JsonArray rows)
         {
             warnings.Add($"{path} is not an array.");
             return result;
         }
-        foreach (var row in rows.OfType<JsonObject>())
+        for (var index = 0; index < rows.Count; index++)
         {
+            if (rows[index] is not JsonObject row) continue;
             var cid = Text(row["cid"]);
-            if (!string.IsNullOrWhiteSpace(cid) && !result.TryAdd(cid, row))
+            if (!string.IsNullOrWhiteSpace(cid) && !result.TryAdd(cid, new BodyRow(index, row)))
                 warnings.Add($"Character '{cid}' has duplicate body-stat rows.");
         }
         return result;
@@ -317,13 +323,14 @@ internal static class CharacterInventoryReader
         return result.OrderBy(slot => slot.Slot).ToArray();
     }
 
-    private static IReadOnlyList<CharacterStat> ReadStats(JsonObject? body)
+    private static IReadOnlyList<CharacterStat> ReadStats(JsonObject? body, string? bodyPointer)
     {
         if (body is null) return [];
         return StatFields.Select(field => new CharacterStat(
             field.Label,
             Scalar(body[field.Property]),
-            field.Bonus is null ? null : Scalar(body[field.Bonus]))).ToArray();
+            field.Bonus is null ? null : Scalar(body[field.Bonus]),
+            bodyPointer is null ? null : $"{bodyPointer}/{field.Property}")).ToArray();
     }
 
     private static Dictionary<string, EntityInfo> BuildEntityIndex(JsonObject root, ICollection<string> warnings)

@@ -37,6 +37,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     private readonly SaveValueCatalog _catalog;
     private readonly IItemCatalogService? _itemCatalogService;
     private readonly IDecalCatalogService? _decalCatalogService;
+    private readonly IBodyStatCatalogService? _bodyStatCatalogService;
     private readonly SaveChangeStagingService _staging = new();
     private readonly List<StorageOperation> _storageOperations = [];
     private readonly List<GrantDecalOperation> _decalGrants = [];
@@ -49,6 +50,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     private IReadOnlyList<DecalCollectionRow> _allDecals = [];
     private IReadOnlyList<DecalCollectionRow> _displayedDecals = [];
     private Dictionary<string, DecalDefinition> _decalDefinitions = new(StringComparer.Ordinal);
+    private BodyStatCatalogLoadResult? _bodyStatCatalog;
     private DecalInventory? _decalInventory;
     private CharacterInventory? _characterInventory;
     private IReadOnlyList<CharacterRow> _allCharacters = [];
@@ -87,12 +89,14 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         ISaveFileService saveFileService,
         SaveValueCatalog? catalog = null,
         IItemCatalogService? itemCatalogService = null,
-        IDecalCatalogService? decalCatalogService = null)
+        IDecalCatalogService? decalCatalogService = null,
+        IBodyStatCatalogService? bodyStatCatalogService = null)
     {
         _saveFileService = saveFileService;
         _catalog = catalog ?? SaveValueCatalog.Empty;
         _itemCatalogService = itemCatalogService;
         _decalCatalogService = decalCatalogService;
+        _bodyStatCatalogService = bodyStatCatalogService;
         ItemCatalog = new ItemCatalogViewModel(itemCatalogService);
         ItemCatalog.PropertyChanged += OnItemCatalogPropertyChanged;
     }
@@ -197,18 +201,29 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         {
             if (!SetField(ref _selectedCharacterBagExpansion, value)) return;
             OnPropertyChanged(nameof(CharacterBagExpansionButtonText));
+            OnPropertyChanged(nameof(CanExpandCharacterBag));
         }
     }
 
     public bool HasCharacterInventory => _characterInventory is not null;
     public bool HasSelectedCharacter => SelectedCharacter is not null;
     public bool HasCharacterSearch => !string.IsNullOrWhiteSpace(CharacterSearch);
-    public bool CanExpandCharacterBag => CanInteract && SelectedCharacter is not null && SelectedCharacter.BagCapacity < ExpandCharacterDeathBagOperation.MaximumRowsPerBag;
+    public bool CanExpandCharacterBag => CanInteract && SelectedCharacter is not null &&
+        SelectedCharacter.BagCapacity + SelectedCharacterBagExpansion <= ExpandCharacterDeathBagOperation.MaximumRowsPerBag;
     public string CharacterBagExpansionButtonText => $"Add {SelectedCharacterBagExpansion:N0} slots";
+    public string CharacterBagLimitText =>
+        $"Manual limit: {ExpandCharacterDeathBagOperation.MaximumRowsPerBag} slots · VIP may add 10 more, up to {ExpandDeathBagsOperation.MaximumRowsPerBag}.";
     public string CharacterSummary => _characterInventory is null
         ? "Characters are unavailable for this save."
         : $"{DisplayedCharacters.Count:N0} of {_allCharacters.Count:N0} fighter(s) shown · player {_characterInventory.PlayerUid}";
     public string CharacterStatus => _characterStatus;
+    public string FighterStatCatalogStatus => _bodyStatCatalog is null
+        ? "Validate masters.db to enable fighter stat allocation editing."
+        : _bodyStatCatalog.Definitions.Count == 0
+            ? (_bodyStatCatalog.Warnings.FirstOrDefault() ?? "Fighter stat definitions are unavailable.")
+            : _bodyStatCatalog.Warnings.Count == 0
+                ? $"{_bodyStatCatalog.Definitions.Count:N0} fighter stat cap definitions loaded from masters.db."
+                : $"{_bodyStatCatalog.Definitions.Count:N0} fighter stat cap definitions loaded with {_bodyStatCatalog.Warnings.Count:N0} warning(s).";
 
     public string DecalSearch
     {
@@ -764,8 +779,17 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         }
 
         await LoadDecalDefinitionsAsync(databasePath, cancellationToken);
+        await LoadBodyStatDefinitionsAsync(databasePath, cancellationToken);
         RebuildCharacterRows();
     });
+
+    private async Task LoadBodyStatDefinitionsAsync(string? databasePath, CancellationToken cancellationToken)
+    {
+        _bodyStatCatalog = null;
+        if (_bodyStatCatalogService is not null && !string.IsNullOrWhiteSpace(databasePath) && File.Exists(databasePath))
+            _bodyStatCatalog = await _bodyStatCatalogService.LoadBodyStatsAsync(databasePath, cancellationToken);
+        OnPropertyChanged(nameof(FighterStatCatalogStatus));
+    }
 
     /// <summary>Resolves decal definitions from the validated masters.db and refreshes loaded rows.</summary>
     private async Task LoadDecalDefinitionsAsync(string? databasePath, CancellationToken cancellationToken)
@@ -910,6 +934,82 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         RefreshPendingChanges();
     }
 
+    private void StageCharacterStat(CharacterStatAllocationRow row, string value)
+    {
+        if (row.Owner is not { } character || !row.IsEditable || row.Cap is not { } cap)
+        {
+            row.ValidationError = "The exact fighter cap definition is unavailable.";
+            return;
+        }
+        if (!int.TryParse(value?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount) || amount < 1 || amount > cap)
+        {
+            _staging.Reset(row.Entry.Pointer);
+            row.ValidationError = $"Enter a whole number between 1 and {cap}.";
+            row.SyncFromStaging(_staging);
+            RecomputeCharacterLevel(character);
+            RefreshPendingChanges();
+            return;
+        }
+
+        _staging.Stage(row.Entry, amount.ToString(CultureInfo.InvariantCulture));
+        row.ValidationError = string.Empty;
+        row.SyncFromStaging(_staging);
+        RecomputeCharacterLevel(character);
+        RefreshPendingChanges();
+    }
+
+    public void UndoCharacterStat(CharacterStatAllocationRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        if (row.Owner is null) return;
+        _staging.Reset(row.Entry.Pointer);
+        row.ValidationError = string.Empty;
+        row.SyncFromStaging(_staging);
+        RecomputeCharacterLevel(row.Owner);
+        RefreshPendingChanges();
+    }
+
+    public void MaxCharacterStats(CharacterRow character)
+    {
+        ArgumentNullException.ThrowIfNull(character);
+        if (!character.CanEditStats) return;
+        foreach (var row in character.AllocatedStats)
+        {
+            if (row.Cap is not { } cap) return;
+            _staging.Stage(row.Entry, cap.ToString(CultureInfo.InvariantCulture));
+            row.ValidationError = string.Empty;
+            row.SyncFromStaging(_staging);
+        }
+        RecomputeCharacterLevel(character);
+        RefreshPendingChanges();
+    }
+
+    public void UndoAllCharacterStats(CharacterRow character)
+    {
+        ArgumentNullException.ThrowIfNull(character);
+        foreach (var row in character.AllocatedStats)
+        {
+            _staging.Reset(row.Entry.Pointer);
+            row.ValidationError = string.Empty;
+            row.SyncFromStaging(_staging);
+        }
+        if (character.LevelEntry is not null) _staging.Reset(character.LevelEntry.Pointer);
+        character.SyncStatLevelFromStaging(_staging);
+        RefreshPendingChanges();
+    }
+
+    private void RecomputeCharacterLevel(CharacterRow character)
+    {
+        if (character.LevelEntry is null || character.OriginalLevel is null) return;
+        var proposedLevel = character.OriginalLevel.Value + character.AllocatedStats.Sum(stat => stat.DraftLevel - stat.OriginalLevel);
+        if (character.AllocatedStats.All(stat => stat.DraftLevel == stat.OriginalLevel))
+            _staging.Reset(character.LevelEntry.Pointer);
+        else
+            _staging.Stage(character.LevelEntry, proposedLevel.ToString(CultureInfo.InvariantCulture));
+        character.SyncStatLevelFromStaging(_staging);
+        SyncValueRowFromStaging(character.LevelEntry.Pointer);
+    }
+
     private void LoadCharacterInventory(SaveFileSnapshot snapshot)
     {
         _characterInventory = null;
@@ -926,7 +1026,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
             {
                 _characterInventory = CharacterInventory.Read(snapshot.Json);
                 _characterStatus = _characterInventory.Warnings.Count == 0
-                    ? "Character records joined successfully. Progression values are read-only in this release."
+                    ? "Character records joined successfully. Select a fighter to inspect stat allocation availability."
                     : $"Character records loaded with {_characterInventory.Warnings.Count:N0} warning(s): " +
                       string.Join(" · ", _characterInventory.Warnings.Take(3));
                 RebuildCharacterRows();
@@ -959,7 +1059,10 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
             {
                 nameEntry = new SaveValueEntry(character.NamePointer, character.NamePointer, SaveValueType.String, character.Name);
             }
-            return new CharacterRow(character, nameEntry, ResolveBagName, StageCharacterName);
+            var cap = ResolveCharacterCap(character);
+            var levelEntry = ResolveScalarEntry(character.BodyStatsPointer is null ? null : character.BodyStatsPointer + "/lvl");
+            return new CharacterRow(character, nameEntry, ResolveBagName, StageCharacterName,
+                levelEntry, cap, ResolveScalarEntry, StageCharacterStat);
         }).ToArray();
         foreach (var row in _allCharacters)
         {
@@ -970,6 +1073,19 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         }
         ApplyCharacterFilter(preferredCharacterId);
     }
+
+    private int? ResolveCharacterCap(CharacterRecord character)
+    {
+        if (_bodyStatCatalog is null ||
+            !int.TryParse(character.Grade, NumberStyles.Integer, CultureInfo.InvariantCulture, out var grade) ||
+            !int.TryParse(character.LimitBreak, NumberStyles.Integer, CultureInfo.InvariantCulture, out var limitBreak))
+            return null;
+        return _bodyStatCatalog.Find(character.FighterType, grade, limitBreak)?.ParameterLevelMaximum;
+    }
+
+    private SaveValueEntry? ResolveScalarEntry(string? pointer) =>
+        pointer is not null && _entriesByPointer.TryGetValue(pointer, out var entry) &&
+        entry.Type is SaveValueType.Number or SaveValueType.String ? entry : null;
 
     private string? ResolveBagName(CharacterBagSlot slot)
     {
@@ -1770,17 +1886,30 @@ public sealed class CharacterRow : INotifyPropertyChanged
     public const int MaximumNameLength = 24;
     private readonly Action<CharacterRow, string> _nameChanged;
     private string _draftName;
+    private string _derivedLevel;
     private string _validationError = string.Empty;
     private bool _isStaged;
 
     public CharacterRow(CharacterRecord character, SaveValueEntry nameEntry,
-        Func<CharacterBagSlot, string?> resolveBagName, Action<CharacterRow, string> nameChanged)
+        Func<CharacterBagSlot, string?> resolveBagName, Action<CharacterRow, string> nameChanged,
+        SaveValueEntry? levelEntry, int? cap, Func<string?, SaveValueEntry?> resolveEntry,
+        Action<CharacterStatAllocationRow, string> statChanged)
     {
         Character = character;
         NameEntry = nameEntry;
         _draftName = character.Name;
+        _derivedLevel = character.Stats.FirstOrDefault(stat => stat.Label == "Level")?.Value ?? "Unavailable";
         _nameChanged = nameChanged;
         DeathBag = character.DeathBag.Select(slot => new CharacterBagSlotRow(slot, resolveBagName(slot))).ToArray();
+        LevelEntry = levelEntry;
+        OriginalLevel = TryInt(character.Stats.FirstOrDefault(stat => stat.Label == "Level")?.Value);
+        var primary = new HashSet<string>(["HP", "STR", "DEX", "VIT", "STM", "LUK"], StringComparer.Ordinal);
+        AllocatedStats = character.Stats.Where(stat => primary.Contains(stat.Label)).Select(stat =>
+        {
+            var entry = resolveEntry(stat.Pointer);
+            return new CharacterStatAllocationRow(this, stat, entry, cap, statChanged);
+        }).ToArray();
+        StatEditingStatus = BuildStatEditingStatus(cap);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -1801,6 +1930,15 @@ public sealed class CharacterRow : INotifyPropertyChanged
     public int? RosterSlot => Character.RosterSlot;
     public string RosterSlotText => RosterSlot is { } slot ? $"Slot {slot + 1}" : "Not in roster";
     public IReadOnlyList<CharacterStat> Stats => Character.Stats;
+    public IReadOnlyList<CharacterStat> ReadOnlyStats => Character.Stats.Where(stat =>
+        stat.Label is "Level" or "Skill" or "Bag" or "Rage").ToArray();
+    public IReadOnlyList<CharacterStatAllocationRow> AllocatedStats { get; }
+    public SaveValueEntry? LevelEntry { get; }
+    public int? OriginalLevel { get; }
+    public string StatEditingStatus { get; }
+    public bool CanEditStats => AllocatedStats.Count == 6 && AllocatedStats.All(stat => stat.IsEditable) && LevelEntry is not null && OriginalLevel is not null;
+    public bool HasStagedStats => AllocatedStats.Any(stat => stat.IsStaged);
+    public string DerivedLevel => _derivedLevel;
     public IReadOnlyList<CharacterBagSlotRow> DeathBag { get; }
     public int BagCapacity => DeathBag.Count;
     public int BagOccupied => DeathBag.Count(slot => slot.IsOccupied);
@@ -1829,8 +1967,31 @@ public sealed class CharacterRow : INotifyPropertyChanged
         var change = staging.Get(NameEntry.Pointer);
         SetField(ref _draftName, change?.ProposedValue ?? Character.Name, nameof(DraftName));
         OnPropertyChanged(nameof(DisplayName));
-        IsStaged = change is not null;
+        IsStaged = change is not null || AllocatedStats.Any(stat => staging.Get(stat.Entry.Pointer) is not null);
+        SyncStatLevelFromStaging(staging);
     }
+
+    public void SyncStatLevelFromStaging(SaveChangeStagingService staging)
+    {
+        foreach (var stat in AllocatedStats) stat.SyncFromStaging(staging);
+        if (LevelEntry is not null)
+            SetField(ref _derivedLevel, staging.Get(LevelEntry.Pointer)?.ProposedValue ?? LevelEntry.Value, nameof(DerivedLevel));
+        IsStaged = staging.Get(NameEntry.Pointer) is not null || AllocatedStats.Any(stat => stat.IsStaged);
+        OnPropertyChanged(nameof(HasStagedStats));
+        OnPropertyChanged(nameof(DerivedLevel));
+    }
+
+    private string BuildStatEditingStatus(int? cap)
+    {
+        if (cap is null) return "The exact type, grade, and limit-break cap is not available from masters.db.";
+        if (LevelEntry is null || OriginalLevel is null) return "The body level scalar is missing or not editable in this save.";
+        if (AllocatedStats.Count != 6 || AllocatedStats.Any(stat => !stat.HasUsableEntry)) return "One or more allocated body stat scalars are missing or not editable in this save.";
+        var invalid = AllocatedStats.Where(stat => stat.OriginalLevel < 1 || stat.OriginalLevel > cap).Select(stat => stat.Label).ToArray();
+        return invalid.Length == 0 ? $"Allocation cap: {cap}. Editing updates body level by the allocation delta."
+            : $"Saved allocation outside the current cap for {string.Join(", ", invalid)}; correct it explicitly before applying.";
+    }
+
+    private static int? TryInt(string? value) => int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var result) ? result : null;
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
@@ -1842,6 +2003,62 @@ public sealed class CharacterRow : INotifyPropertyChanged
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+}
+
+public sealed class CharacterStatAllocationRow : INotifyPropertyChanged
+{
+    private readonly Action<CharacterStatAllocationRow, string> _draftChanged;
+    private string _draftLevel;
+    private string _validationError = string.Empty;
+    private bool _isStaged;
+
+    public CharacterStatAllocationRow(CharacterRow owner, CharacterStat stat, SaveValueEntry? entry, int? cap,
+        Action<CharacterStatAllocationRow, string> draftChanged)
+    {
+        Owner = owner;
+        Label = stat.Label;
+        Bonus = stat.Bonus;
+        Entry = entry ?? new SaveValueEntry(stat.Pointer ?? string.Empty, stat.Pointer ?? string.Empty, SaveValueType.Number, stat.Value);
+        HasUsableEntry = entry is not null;
+        Cap = cap;
+        OriginalLevel = Parse(stat.Value);
+        _draftLevel = stat.Value;
+        _draftChanged = draftChanged;
+        if (cap is not null && (OriginalLevel < 1 || OriginalLevel > cap))
+            _validationError = $"Saved value {OriginalLevel} is outside 1–{cap}.";
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    public CharacterRow Owner { get; }
+    public string Label { get; }
+    public string? Bonus { get; }
+    public SaveValueEntry Entry { get; }
+    public bool HasUsableEntry { get; }
+    public int? Cap { get; }
+    public int OriginalLevel { get; }
+    public int DraftLevel => Parse(_draftLevel);
+    public bool IsEditable => HasUsableEntry && Cap is not null;
+    public string DraftText { get => _draftLevel; set { if (SetField(ref _draftLevel, value ?? string.Empty)) _draftChanged(this, _draftLevel); } }
+    public string ValidationError { get => _validationError; set => SetField(ref _validationError, value); }
+    public bool IsStaged { get => _isStaged; private set => SetField(ref _isStaged, value); }
+    public string CurrentText => OriginalLevel.ToString(CultureInfo.InvariantCulture);
+    public string CapText => Cap?.ToString(CultureInfo.InvariantCulture) ?? "—";
+
+    public void SyncFromStaging(SaveChangeStagingService staging)
+    {
+        var change = HasUsableEntry ? staging.Get(Entry.Pointer) : null;
+        SetField(ref _draftLevel, change?.ProposedValue ?? CurrentText, nameof(DraftText));
+        IsStaged = change is not null;
+    }
+
+    private static int Parse(string text) => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : 0;
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        return true;
+    }
 }
 
 public sealed class CharacterBagSlotRow

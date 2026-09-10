@@ -365,6 +365,22 @@ public partial class MainWindow : Window
             _viewModel.SaveEditor.UndoCharacterName(row);
     }
 
+    private void OnUndoCharacterStat(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: CharacterStatAllocationRow row })
+            _viewModel.SaveEditor.UndoCharacterStat(row);
+    }
+
+    private void OnMaxCharacterStats(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: CharacterRow row }) _viewModel.SaveEditor.MaxCharacterStats(row);
+    }
+
+    private void OnUndoAllCharacterStats(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: CharacterRow row }) _viewModel.SaveEditor.UndoAllCharacterStats(row);
+    }
+
     private void OnUndoLastStorageOperation(object sender, RoutedEventArgs e) =>
         _viewModel.SaveEditor.UndoLastStorageOperation();
 

@@ -323,7 +323,7 @@ public sealed class StorageEngineTests
     [Theory]
     [InlineData(0)]
     [InlineData(-5)]
-    [InlineData(71)]
+    [InlineData(81)]
     public void Apply_RejectsDeathBagExpansionOutsideTheAllowedRowCounts(int rowsPerBag)
     {
         var exception = Assert.Throws<InvalidOperationException>(
@@ -347,6 +347,20 @@ public sealed class StorageEngineTests
         var second = StorageEngine.Apply(first, [new ExpandDeathBagsOperation()]);
         Assert.Equal(ExpandDeathBagsOperation.MaximumRowsPerBag,
             JsonNode.Parse(second)!["soul"]!["deathbag"]!["424242"]!["77"]!.AsArray().Count);
+    }
+
+    [Fact]
+    public void Apply_VipDeathBagExpansion_CanUseTheTenSlotsReservedAboveTheManualLimit()
+    {
+        var root = JsonNode.Parse(SaveJson())!.AsObject();
+        var bag = root["soul"]!["deathbag"]!["424242"]!["77"]!.AsArray();
+        for (var slot = bag.Count; bag.Count < ExpandCharacterDeathBagOperation.MaximumRowsPerBag; slot++)
+            bag.Add(new JsonObject { ["slot"] = slot, ["type"] = -1, ["eid"] = "" });
+
+        var edited = StorageEngine.Apply(root.ToJsonString(), [new ExpandDeathBagsOperation()]);
+
+        Assert.Equal(ExpandDeathBagsOperation.MaximumRowsPerBag,
+            JsonNode.Parse(edited)!["soul"]!["deathbag"]!["424242"]!["77"]!.AsArray().Count);
     }
 
     private static string SaveJson() => $$"""
