@@ -29,6 +29,7 @@ public sealed class MapViewModel : INotifyPropertyChanged
     private bool _showAreaLabels;
     private bool _showBossInfo = true;
     private bool _showLootInfo = true;
+    private double _zoom = 1d;
 
     public MapViewModel(IMapDataService? service = null, MapAreaInfoCatalog? areaInfoCatalog = null)
     {
@@ -50,6 +51,15 @@ public sealed class MapViewModel : INotifyPropertyChanged
 
     /// <summary>Minimum centre-to-centre distance between dots sharing one floor row.</summary>
     public const double MinimumSameRowGap = 26d;
+
+    /// <summary>Smallest zoom factor the view accepts (50 %).</summary>
+    public const double MinimumZoom = 0.5d;
+
+    /// <summary>Largest zoom factor the view accepts (300 %).</summary>
+    public const double MaximumZoom = 3.0d;
+
+    /// <summary>Zoom change applied by the +/− controls (Ctrl+scroll scales continuously).</summary>
+    public const double ZoomStep = 0.25d;
 
     private const double TopPad = 30d;
     private const double BottomPad = 26d;
@@ -147,6 +157,38 @@ public sealed class MapViewModel : INotifyPropertyChanged
             RaiseLayoutChanged();
         }
     }
+
+    /// <summary>
+    /// Canvas zoom factor (1 = 100 %). The view applies it as a layout scale so dots, lines and
+    /// labels stay crisp at any size. Clamped to <see cref="MinimumZoom"/>–<see cref="MaximumZoom"/>.
+    /// </summary>
+    public double Zoom
+    {
+        get => _zoom;
+        set
+        {
+            var clamped = Math.Clamp(value, MinimumZoom, MaximumZoom);
+            if (!SetField(ref _zoom, clamped)) return;
+            OnPropertyChanged(nameof(ZoomPercentText));
+            OnPropertyChanged(nameof(CanZoomIn));
+            OnPropertyChanged(nameof(CanZoomOut));
+        }
+    }
+
+    public string ZoomPercentText => $"{Math.Round(_zoom * 100d):0}%";
+
+    public bool CanZoomIn => _zoom < MaximumZoom - 0.0001d;
+
+    public bool CanZoomOut => _zoom > MinimumZoom + 0.0001d;
+
+    /// <summary>Steps the zoom in by one <see cref="ZoomStep"/>.</summary>
+    public void ZoomIn() => Zoom = _zoom + ZoomStep;
+
+    /// <summary>Steps the zoom out by one <see cref="ZoomStep"/>.</summary>
+    public void ZoomOut() => Zoom = _zoom - ZoomStep;
+
+    /// <summary>Returns the map to its natural 100 % scale.</summary>
+    public void ResetZoom() => Zoom = 1d;
 
     public MapAreaRow? SelectedArea
     {

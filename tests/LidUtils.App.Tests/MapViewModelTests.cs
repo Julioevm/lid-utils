@@ -201,6 +201,71 @@ public sealed class MapViewModelTests
         Assert.True(roaming.HasBoss);
     }
 
+    [Fact]
+    public void Zoom_StepsClampsAndResetsAroundTheNaturalScale()
+    {
+        var viewModel = new MapViewModel();
+        Assert.Equal(1d, viewModel.Zoom);
+        Assert.Equal("100%", viewModel.ZoomPercentText);
+        Assert.True(viewModel.CanZoomIn);
+        Assert.True(viewModel.CanZoomOut);
+
+        viewModel.ZoomIn();
+        Assert.Equal(1d + MapViewModel.ZoomStep, viewModel.Zoom, 6);
+        Assert.Equal("125%", viewModel.ZoomPercentText);
+        Assert.True(viewModel.CanZoomOut);
+
+        viewModel.ZoomOut();
+        viewModel.ZoomOut();
+        Assert.Equal(1d - MapViewModel.ZoomStep, viewModel.Zoom, 6);
+        Assert.Equal("75%", viewModel.ZoomPercentText);
+
+        // Out-of-range requests clamp and report the stop so the view can disable its button.
+        viewModel.Zoom = MapViewModel.MaximumZoom + 5d;
+        Assert.Equal(MapViewModel.MaximumZoom, viewModel.Zoom);
+        Assert.Equal("300%", viewModel.ZoomPercentText);
+        Assert.False(viewModel.CanZoomIn);
+
+        viewModel.Zoom = MapViewModel.MinimumZoom - 5d;
+        Assert.Equal(MapViewModel.MinimumZoom, viewModel.Zoom);
+        Assert.Equal("50%", viewModel.ZoomPercentText);
+        Assert.False(viewModel.CanZoomOut);
+
+        // Reset is available from any zoom level and is idempotent.
+        viewModel.ResetZoom();
+        Assert.Equal(1d, viewModel.Zoom);
+        Assert.Equal("100%", viewModel.ZoomPercentText);
+        Assert.True(viewModel.CanZoomIn);
+        Assert.True(viewModel.CanZoomOut);
+        viewModel.ResetZoom();
+        Assert.Equal(1d, viewModel.Zoom);
+    }
+
+    [Fact]
+    public void ZoomNotifications_FireOnlyWhenTheFactorChanges()
+    {
+        var viewModel = new MapViewModel();
+        var changed = new List<string>();
+        viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName ?? string.Empty);
+
+        viewModel.ZoomIn();
+        Assert.Contains(nameof(MapViewModel.Zoom), changed);
+        Assert.Contains(nameof(MapViewModel.ZoomPercentText), changed);
+        Assert.Contains(nameof(MapViewModel.CanZoomIn), changed);
+
+        // A no-op write (already at 100 %) stays quiet so the view does not re-anchor needlessly.
+        viewModel.ResetZoom();
+        changed.Clear();
+        viewModel.ResetZoom();
+        Assert.Empty(changed);
+
+        // Clamping to the limit that is already applied is also a no-op.
+        viewModel.Zoom = MapViewModel.MaximumZoom + 5d;
+        changed.Clear();
+        viewModel.ZoomIn();
+        Assert.Empty(changed);
+    }
+
     private static TowerMapLoadResult Fixture(string activeTemplate = "4HMA") => new(
         Templates:
         [

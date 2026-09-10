@@ -10,7 +10,8 @@ namespace LidUtils.App;
 
 /// <summary>
 /// Draws the layout produced by MapViewModel on a canvas: floor rows, connection arrows and
-/// area chips. Handles drag-to-pan, click-to-select and the initial scroll down to F1.
+/// area chips. Handles drag-to-pan, click-to-select, Ctrl+wheel/button zoom and the initial
+/// scroll down to F1.
 /// </summary>
 public partial class MapView : UserControl
 {
@@ -72,9 +73,19 @@ public partial class MapView : UserControl
     private bool _hadData;
     private MapViewModel? _viewModel;
 
+    /// <summary>Layout scale applied to the canvas when <see cref="MapViewModel.Zoom"/> changes.</summary>
+    private readonly ScaleTransform _mapScale = new(1d, 1d);
+    private double _appliedZoom = 1d;
+
+    /// <summary>Viewport point the last zoom request should keep fixed (mouse position for wheel zoom).</summary>
+    private Point? _zoomAnchor;
+
+    private const double ZoomWheelFactor = 1.15d;
+
     public MapView()
     {
         InitializeComponent();
+        MapCanvas.LayoutTransform = _mapScale;
         DataContextChanged += OnDataContextChanged;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -88,12 +99,17 @@ public partial class MapView : UserControl
         _viewModel = ViewModel;
         if (_viewModel is not null) _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _hadData = false;
+        _zoomAnchor = null;
+        _appliedZoom = _viewModel?.Zoom ?? 1d;
+        _mapScale.ScaleX = _appliedZoom;
+        _mapScale.ScaleY = _appliedZoom;
         Redraw();
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(MapViewModel.GeometryVersion)) Redraw();
+        else if (e.PropertyName == nameof(MapViewModel.Zoom)) ApplyZoom();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e) => Redraw();
@@ -105,6 +121,60 @@ public partial class MapView : UserControl
     }
 
     private void OnTodayClicked(object sender, RoutedEventArgs e) => ViewModel?.SelectTodayTemplate();
+
+    private void OnZoomInClicked(object sender, RoutedEventArgs e) => ViewModel?.ZoomIn();
+
+    private void OnZoomOutClicked(object sender, RoutedEventArgs e) => ViewModel?.ZoomOut();
+
+    private void OnZoomResetClicked(object sender, RoutedEventArgs e) => ViewModel?.ResetZoom();
+
+    /// <summary>Ctrl+wheel zooms the canvas; a plain wheel keeps scrolling the map as before.</summary>
+    private void OnMapPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        var viewModel = ViewModel;
+        if (viewModel is null || (Keyboard.Modifiers & ModifierKeys.Control) == 0) return;
+
+        _zoomAnchor = e.GetPosition(MapScrollViewer);
+        var factor = e.Delta > 0 ? ZoomWheelFactor : 1d / ZoomWheelFactor;
+        var next = viewModel.Zoom * factor;
+        // Land exactly on 100 % when a wheel gesture finishes next to it.
+        if (Math.Abs(next - 1d) < 0.02d) next = 1d;
+        viewModel.Zoom = next;
+        // Hitting a zoom stop fires no change event, so drop the stale anchor here.
+        if (Math.Abs(viewModel.Zoom - next) > 1e-9d) _zoomAnchor = null;
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Applies <see cref="MapViewModel.Zoom"/> as a layout scale. The scroll offset is adjusted so the
+    /// anchor point (mouse position, or the viewport centre for the buttons) keeps showing the same map spot.
+    /// </summary>
+    private void ApplyZoom()
+    {
+        var viewModel = ViewModel;
+        if (viewModel is null) return;
+        var target = viewModel.Zoom;
+        if (Math.Abs(target - _appliedZoom) < 1e-9d) return;
+
+        var viewer = MapScrollViewer;
+        var anchor = _zoomAnchor ?? new Point(viewer.ViewportWidth / 2d, viewer.ViewportHeight / 2d);
+        _zoomAnchor = null;
+
+        // Content coordinates ignore the current scale, so convert through the old factor.
+        var canAnchor = _appliedZoom > 0d && viewer.ViewportWidth > 0d && viewer.ViewportHeight > 0d;
+        var contentX = canAnchor ? (viewer.HorizontalOffset + anchor.X) / _appliedZoom : 0d;
+        var contentY = canAnchor ? (viewer.VerticalOffset + anchor.Y) / _appliedZoom : 0d;
+
+        _appliedZoom = target;
+        _mapScale.ScaleX = target;
+        _mapScale.ScaleY = target;
+        if (!canAnchor) return;
+
+        // The scrollable extent only reflects the new scale after a layout pass.
+        viewer.UpdateLayout();
+        viewer.ScrollToHorizontalOffset(contentX * target - anchor.X);
+        viewer.ScrollToVerticalOffset(contentY * target - anchor.Y);
+    }
 
     private void Redraw()
     {

@@ -97,16 +97,38 @@
                 <ColumnDefinition Width="420"/>
             </Grid.ColumnDefinitions>
             <Border Background="#0F1319" BorderBrush="#2A313D" BorderThickness="1" CornerRadius="4" ClipToBounds="True">
-                <ScrollViewer x:Name="MapScrollViewer"
-                              HorizontalScrollBarVisibility="Auto"
-                              VerticalScrollBarVisibility="Auto"
-                              PanningMode="None">
-                    <Canvas x:Name="MapCanvas" Background="Transparent" MinWidth="300" MinHeight="120"
-                            MouseLeftButtonDown="OnCanvasMouseLeftButtonDown"
-                            MouseLeftButtonUp="OnCanvasMouseLeftButtonUp"
-                            MouseMove="OnCanvasMouseMove"
-                            MouseLeave="OnCanvasMouseLeave"/>
-                </ScrollViewer>
+                <Grid>
+                    <ScrollViewer x:Name="MapScrollViewer"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto"
+                                  PanningMode="None"
+                                  PreviewMouseWheel="OnMapPreviewMouseWheel">
+                        <Canvas x:Name="MapCanvas" Background="Transparent" MinWidth="300" MinHeight="120"
+                                MouseLeftButtonDown="OnCanvasMouseLeftButtonDown"
+                                MouseLeftButtonUp="OnCanvasMouseLeftButtonUp"
+                                MouseMove="OnCanvasMouseMove"
+                                MouseLeave="OnCanvasMouseLeave"/>
+                    </ScrollViewer>
+                    <!-- Floating zoom controls: overlay the map so the canvas keeps the full area. -->
+                    <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,14,0"
+                            Padding="4" CornerRadius="4"
+                            Background="#161B23" BorderBrush="#2A313D" BorderThickness="1"
+                            Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="&#x2212;" Width="26" Height="24" MinWidth="26" Padding="0" Margin="0"
+                                    FontSize="14" Click="OnZoomOutClicked"
+                                    IsEnabled="{Binding CanZoomOut}"
+                                    ToolTip="Zoom out — Ctrl+scroll down also works anywhere on the map"/>
+                            <Button Content="{Binding ZoomPercentText}" Height="24" MinWidth="56" Padding="6,0" Margin="4,0"
+                                    FontSize="11" Click="OnZoomResetClicked"
+                                    ToolTip="Reset the zoom to 100 %"/>
+                            <Button Content="+" Width="26" Height="24" MinWidth="26" Padding="0" Margin="0"
+                                    FontSize="14" Click="OnZoomInClicked"
+                                    IsEnabled="{Binding CanZoomIn}"
+                                    ToolTip="Zoom in — larger dots and labels; Ctrl+scroll up also works"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
             </Border>
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
@@ -164,6 +186,7 @@
         <!-- Help footer -->
         <TextBlock Grid.Row="5" Foreground="#7E8999" FontSize="11" TextWrapping="Wrap">
             <Run Text="Drag the map to pan. Click an area dot or list row to inspect it. Filled dots are base corridors present in every rotation; hollow diamonds are side areas mounted only by the chosen rotation."/>
+            <Run Text=" Zoom with the +/− controls in the map's top-right corner or with Ctrl+scroll (the map point under the pointer stays put); the percentage button resets to 100 %."/>
             <Run Text=" Coloured rings and matching route lines are elevator services — floors the same car stops at are joined even when no stairs or hatches connect them, and each car has its own colour. The Waiting Room (main elevator) is the hub at the base of the tower."/>
             <Run Text=" The themed bands are shown on a single vertical scale (F1 at the bottom). Heaven (F51–F451) is not included in this iteration." Foreground="#8A6F2F"/>
             <Run Text=" Boss markers: " Foreground="#8A94A6"/><Run Text="BOSS" Foreground="#E4587A"/><Run Text=" = boss arena, " Foreground="#8A94A6"/><Run Text="FFM" Foreground="#E8C36A"/><Run Text=" = paid Four Force Men room. Boss-gated routes are drawn in the matching colour. Roaming section bosses are not badged." Foreground="#8A94A6"/>
