@@ -32,7 +32,7 @@ friendly empty state rather than a blank detail panel.
 The right side starts with a summary header and uses three compact sections:
 
 1. **Profile** — name, status, roster slot, fighter type, grade, limit break,
-   current HP, XP, carried currencies, body/appearance id, and character id.
+   current HP, available XP (`gain_exp`), carried currencies, body/appearance id, and character id.
 2. **Stats** — level, HP, STR, DEX, VIT, STM, LUK, skill, bag, rage, and the
    corresponding bonus values.
 3. **Death Bag** — capacity summary and a slot grid showing slot number, item type,
@@ -104,8 +104,10 @@ save value. It stages the edited stat and the body `lvl` scalar together. The
 level rule preserves unlock progression: `new lvl = original lvl + sum(draft
 primary stats - original primary stats)`, so skill/bag/rage contributions remain
 untouched. G7–G9 effective variants are represented by the game's grade-6
-limit-break 2–4 master rows. Bonuses, current HP, XP, grade, limit break, skill,
-bag, and rage remain read-only.
+limit-break 2–4 master rows. The profile's **Available XP** field edits the
+fighter's `gain_exp` scalar (the current spendable experience), validating it as
+a non-negative whole number and preserving the save's source scalar type.
+Bonuses, current HP, grade, limit break, skill, bag, and rage remain read-only.
 
 Remaining bounded character-management work:
 

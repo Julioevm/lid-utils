@@ -365,6 +365,12 @@ public partial class MainWindow : Window
             _viewModel.SaveEditor.UndoCharacterName(row);
     }
 
+    private void OnUndoCharacterGainExperience(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: CharacterRow row })
+            _viewModel.SaveEditor.UndoCharacterGainExperience(row);
+    }
+
     private void OnUndoCharacterStat(object sender, RoutedEventArgs e)
     {
         if (sender is Button { DataContext: CharacterStatAllocationRow row })

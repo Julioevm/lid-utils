@@ -42,6 +42,8 @@ public sealed class CharacterInventoryTests
         Assert.Equal("In use", active.Status);
         Assert.Equal(0, active.RosterSlot);
         Assert.Equal("7", active.Stats.Single(stat => stat.Label == "Level").Value);
+        Assert.Equal("100", active.GainExperience);
+        Assert.Equal("/soul/chr/chrs/424242/1/gain_exp", active.GainExperiencePointer);
         Assert.Equal("/bodyuser/424242/0", active.BodyStatsPointer);
         Assert.Equal("/bodyuser/424242/0/hp", active.Stats.Single(stat => stat.Label == "HP").Pointer);
         Assert.Equal("SKL_ONE", Assert.Single(active.EquippedDecals));
@@ -120,8 +122,8 @@ public sealed class CharacterInventoryTests
         {
           "user":{"uid":424242},
           "soul":{"uid":424242,"cl":[],"chr":{"chrs":{"424242":[
-            {"uid":424242,"cid":"dead","name":"Morgan","state":"ENEMY","type":"COL","body":"BODY_F","grade":2,"limit_break":0,"hp":0,"total_exp":3,"money":0,"spirit":0,"bloodnium":0},
-            {"uid":424242,"cid":"active","name":"Alice","state":"USE","type":"BAL","body":"BODY_M","grade":1,"limit_break":0,"hp":290,"total_exp":100,"money":12,"spirit":4,"bloodnium":1}
+            {"uid":424242,"cid":"dead","name":"Morgan","state":"ENEMY","type":"COL","body":"BODY_F","grade":2,"limit_break":0,"hp":0,"gain_exp":3,"money":0,"spirit":0,"bloodnium":0},
+            {"uid":424242,"cid":"active","name":"Alice","state":"USE","type":"BAL","body":"BODY_M","grade":1,"limit_break":0,"hp":290,"gain_exp":100,"money":12,"spirit":4,"bloodnium":1}
           ]},"slots":{"424242":[{"uid":424242,"slot":1,"cid":"dead"},{"uid":424242,"slot":0,"cid":"active"}]}},
           "deathbag":{"424242":{"dead":[{"uid":424242,"cid":"dead","slot":0,"type":-1,"eid":"","site":"","arm_slot":-1}],"active":[{"uid":424242,"cid":"active","slot":0,"type":3,"eid":"11111111-1111-1111-1111-111111111111","site":"","arm_slot":-1}]}},
           "skl":{"eqskl":{"424242":[{"cid":"active","sklid":"SKL_ONE","slot":0}]}}},

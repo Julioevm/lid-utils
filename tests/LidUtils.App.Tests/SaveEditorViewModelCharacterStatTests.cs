@@ -52,11 +52,12 @@ public sealed class SaveEditorViewModelCharacterStatTests
     private static SaveFileSnapshot Snapshot()
     {
         const string json = """
-            {"user":{"uid":9},"soul":{"uid":9,"cl":[],"chr":{"chrs":{"9":[{"cid":"active","name":"Alice","state":"USE","type":"BAL","body":"BODY_M","grade":1,"limit_break":0,"hp":10,"total_exp":0,"money":0,"spirit":0,"bloodnium":0}]},"slots":{"9":[{"slot":0,"cid":"active"}]}},"deathbag":{"9":{"active":[]}},"skl":{"eqskl":{"9":[]}}},"bodyuser":{"9":[{"cid":"active","lvl":20,"hp":1,"str":1,"dex":1,"vit":1,"stm":1,"luk":1,"skill":4,"bag":3,"rage":2,"hp_bonus":0,"str_bonus":0,"dex_bonus":0,"vit_bonus":0,"stm_bonus":0,"luk_bonus":0}]},"part":{"pts":{"9":[]}},"item":{"items":[]},"mushroom":{"msrs":[]},"beast":{"bsts":[]},"diedchara":{"dchrs":{"9":[]}}}
+            {"user":{"uid":9},"soul":{"uid":9,"cl":[],"chr":{"chrs":{"9":[{"cid":"active","name":"Alice","state":"USE","type":"BAL","body":"BODY_M","grade":1,"limit_break":0,"hp":10,"gain_exp":0,"money":0,"spirit":0,"bloodnium":0}]},"slots":{"9":[{"slot":0,"cid":"active"}]}},"deathbag":{"9":{"active":[]}},"skl":{"eqskl":{"9":[]}}},"bodyuser":{"9":[{"cid":"active","lvl":20,"hp":1,"str":1,"dex":1,"vit":1,"stm":1,"luk":1,"skill":4,"bag":3,"rage":2,"hp_bonus":0,"str_bonus":0,"dex_bonus":0,"vit_bonus":0,"stm_bonus":0,"luk_bonus":0}]},"part":{"pts":{"9":[]}},"item":{"items":[]},"mushroom":{"msrs":[]},"beast":{"bsts":[]},"diedchara":{"dchrs":{"9":[]}}}
             """;
         var entries = new List<SaveValueEntry>
         {
-            new("/soul/chr/chrs/9/0/name", "name", SaveValueType.String, "Alice")
+            new("/soul/chr/chrs/9/0/name", "name", SaveValueType.String, "Alice"),
+            new("/soul/chr/chrs/9/0/gain_exp", "gain_exp", SaveValueType.Number, "0")
         };
         foreach (var field in new[] { "lvl", "hp", "str", "dex", "vit", "stm", "luk" })
             entries.Add(new($"/bodyuser/9/0/{field}", field, SaveValueType.Number, field == "lvl" ? "20" : "1"));

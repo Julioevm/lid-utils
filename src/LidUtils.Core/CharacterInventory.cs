@@ -31,7 +31,7 @@ public sealed record CharacterRecord(
     string Grade,
     string LimitBreak,
     string CurrentHp,
-    string TotalExperience,
+    string GainExperience,
     string CarriedMoney,
     string CarriedSplithium,
     string CarriedBloodnium,
@@ -39,7 +39,8 @@ public sealed record CharacterRecord(
     IReadOnlyList<CharacterBagSlot> DeathBag,
     IReadOnlyList<string> EquippedDecals,
     IReadOnlyList<string> Warnings,
-    string? BodyStatsPointer = null);
+    string? BodyStatsPointer = null,
+    string? GainExperiencePointer = null);
 
 public sealed record CharacterInventory(
     int PlayerUid,
@@ -131,10 +132,11 @@ internal static class CharacterInventoryReader
             if (status.StartsWith("Unknown", StringComparison.Ordinal))
                 characterWarnings.Add("The fighter has an unrecognized state and is shown read-only.");
 
+            var fighterPointer = $"/soul/chr/chrs/{key}/{index}";
             result.Add(new CharacterRecord(
                 cid,
                 Text(fighter["name"]) ?? string.Empty,
-                $"/soul/chr/chrs/{key}/{index}/name",
+                fighterPointer + "/name",
                 rawState,
                 status,
                 rosterSlot,
@@ -143,7 +145,7 @@ internal static class CharacterInventoryReader
                 Scalar(fighter["grade"]),
                 Scalar(fighter["limit_break"]),
                 Scalar(fighter["hp"]),
-                Scalar(fighter["total_exp"]),
+                Scalar(fighter["gain_exp"]),
                 Scalar(fighter["money"]),
                 Scalar(fighter["spirit"]),
                 Scalar(fighter["bloodnium"]),
@@ -151,7 +153,8 @@ internal static class CharacterInventoryReader
                 slots,
                 equipped.TryGetValue(cid, out var skills) ? skills : [],
                 characterWarnings,
-                bodyRow is null ? null : $"/bodyuser/{key}/{bodyRow.Index}"));
+                bodyRow is null ? null : $"/bodyuser/{key}/{bodyRow.Index}",
+                fighterPointer + "/gain_exp"));
         }
 
         return new CharacterInventory(uid,

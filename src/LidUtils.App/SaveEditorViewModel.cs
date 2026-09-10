@@ -934,6 +934,38 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         RefreshPendingChanges();
     }
 
+    private void StageCharacterGainExperience(CharacterRow row, string value)
+    {
+        if (row.GainExperienceEntry is not { } entry)
+        {
+            row.GainExperienceError = "Available XP is not present or editable in this save.";
+            return;
+        }
+        if (!long.TryParse(value?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var amount) || amount < 0)
+        {
+            _staging.Reset(entry.Pointer);
+            row.GainExperienceError = "Enter a whole number of 0 or more.";
+            row.SyncStatLevelFromStaging(_staging);
+            RefreshPendingChanges();
+            return;
+        }
+
+        var outcome = _staging.Stage(entry, amount.ToString(CultureInfo.InvariantCulture));
+        row.GainExperienceError = outcome.Error ?? string.Empty;
+        row.IsGainExperienceStaged = outcome.Change is not null;
+        row.SyncStatLevelFromStaging(_staging);
+        RefreshPendingChanges();
+    }
+
+    public void UndoCharacterGainExperience(CharacterRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        if (row.GainExperienceEntry is { } entry) _staging.Reset(entry.Pointer);
+        row.GainExperienceError = string.Empty;
+        row.SyncStatLevelFromStaging(_staging);
+        RefreshPendingChanges();
+    }
+
     private void StageCharacterStat(CharacterStatAllocationRow row, string value)
     {
         if (row.Owner is not { } character || !row.IsEditable || row.Cap is not { } cap)
@@ -1062,7 +1094,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
             var cap = ResolveCharacterCap(character);
             var levelEntry = ResolveScalarEntry(character.BodyStatsPointer is null ? null : character.BodyStatsPointer + "/lvl");
             return new CharacterRow(character, nameEntry, ResolveBagName, StageCharacterName,
-                levelEntry, cap, ResolveScalarEntry, StageCharacterStat);
+                levelEntry, cap, ResolveScalarEntry, StageCharacterStat, StageCharacterGainExperience);
         }).ToArray();
         foreach (var row in _allCharacters)
         {
@@ -1885,21 +1917,29 @@ public sealed class CharacterRow : INotifyPropertyChanged
 {
     public const int MaximumNameLength = 24;
     private readonly Action<CharacterRow, string> _nameChanged;
+    private readonly Action<CharacterRow, string>? _gainExperienceChanged;
     private string _draftName;
     private string _derivedLevel;
+    private string _draftGainExperience;
+    private string _gainExperienceError = string.Empty;
+    private bool _isGainExperienceStaged;
     private string _validationError = string.Empty;
     private bool _isStaged;
 
     public CharacterRow(CharacterRecord character, SaveValueEntry nameEntry,
         Func<CharacterBagSlot, string?> resolveBagName, Action<CharacterRow, string> nameChanged,
         SaveValueEntry? levelEntry, int? cap, Func<string?, SaveValueEntry?> resolveEntry,
-        Action<CharacterStatAllocationRow, string> statChanged)
+        Action<CharacterStatAllocationRow, string> statChanged,
+        Action<CharacterRow, string>? gainExperienceChanged = null)
     {
         Character = character;
         NameEntry = nameEntry;
         _draftName = character.Name;
         _derivedLevel = character.Stats.FirstOrDefault(stat => stat.Label == "Level")?.Value ?? "Unavailable";
         _nameChanged = nameChanged;
+        _gainExperienceChanged = gainExperienceChanged;
+        GainExperienceEntry = character.GainExperiencePointer is null ? null : resolveEntry(character.GainExperiencePointer);
+        _draftGainExperience = GainExperienceEntry?.Value ?? character.GainExperience;
         DeathBag = character.DeathBag.Select(slot => new CharacterBagSlotRow(slot, resolveBagName(slot))).ToArray();
         LevelEntry = levelEntry;
         OriginalLevel = TryInt(character.Stats.FirstOrDefault(stat => stat.Label == "Level")?.Value);
@@ -1923,7 +1963,9 @@ public sealed class CharacterRow : INotifyPropertyChanged
     public int GradeNumber => int.TryParse(Grade, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : -1;
     public string LimitBreak => Character.LimitBreak;
     public string CurrentHp => Character.CurrentHp;
-    public string TotalExperience => Character.TotalExperience;
+    public SaveValueEntry? GainExperienceEntry { get; }
+    public string GainExperience => Character.GainExperience;
+    public bool CanEditGainExperience => GainExperienceEntry is not null;
     public string CarriedMoney => Character.CarriedMoney;
     public string CarriedSplithium => Character.CarriedSplithium;
     public string CarriedBloodnium => Character.CarriedBloodnium;
@@ -1961,6 +2003,17 @@ public sealed class CharacterRow : INotifyPropertyChanged
     }
     public string ValidationError { get => _validationError; set => SetField(ref _validationError, value); }
     public bool IsStaged { get => _isStaged; set => SetField(ref _isStaged, value); }
+    public string DraftGainExperience
+    {
+        get => _draftGainExperience;
+        set
+        {
+            if (!SetField(ref _draftGainExperience, value ?? string.Empty)) return;
+            _gainExperienceChanged?.Invoke(this, _draftGainExperience);
+        }
+    }
+    public string GainExperienceError { get => _gainExperienceError; set => SetField(ref _gainExperienceError, value); }
+    public bool IsGainExperienceStaged { get => _isGainExperienceStaged; set => SetField(ref _isGainExperienceStaged, value); }
 
     public void SyncFromStaging(SaveChangeStagingService staging)
     {
@@ -1976,7 +2029,10 @@ public sealed class CharacterRow : INotifyPropertyChanged
         foreach (var stat in AllocatedStats) stat.SyncFromStaging(staging);
         if (LevelEntry is not null)
             SetField(ref _derivedLevel, staging.Get(LevelEntry.Pointer)?.ProposedValue ?? LevelEntry.Value, nameof(DerivedLevel));
-        IsStaged = staging.Get(NameEntry.Pointer) is not null || AllocatedStats.Any(stat => stat.IsStaged);
+        var gainChange = GainExperienceEntry is null ? null : staging.Get(GainExperienceEntry.Pointer);
+        SetField(ref _draftGainExperience, gainChange?.ProposedValue ?? GainExperienceEntry?.Value ?? Character.GainExperience, nameof(DraftGainExperience));
+        IsGainExperienceStaged = gainChange is not null;
+        IsStaged = staging.Get(NameEntry.Pointer) is not null || AllocatedStats.Any(stat => stat.IsStaged) || IsGainExperienceStaged;
         OnPropertyChanged(nameof(HasStagedStats));
         OnPropertyChanged(nameof(DerivedLevel));
     }

@@ -32,6 +32,48 @@ public sealed class SaveEditorViewModelCharacterTests
     }
 
     [Fact]
+    public async Task GainExperienceDraft_StagesNumberAndUndoRestoresOriginal()
+    {
+        var service = new RecordingService(Snapshot());
+        var viewModel = new SaveEditorViewModel(service);
+        await viewModel.SelectPathAsync(service.Snapshot.Path);
+        var fighter = viewModel.SelectedCharacter!;
+
+        Assert.Equal("394", fighter.GainExperience);
+        Assert.True(fighter.CanEditGainExperience);
+
+        fighter.DraftGainExperience = "1200";
+
+        Assert.True(fighter.IsGainExperienceStaged);
+        Assert.True(fighter.IsStaged);
+        var change = Assert.Single(viewModel.PendingChanges);
+        Assert.Equal("/soul/chr/chrs/9/0/gain_exp", change.Pointer);
+        Assert.Equal("1200", change.ProposedValue);
+
+        viewModel.UndoCharacterGainExperience(fighter);
+
+        Assert.Empty(viewModel.PendingChanges);
+        Assert.False(fighter.IsGainExperienceStaged);
+        Assert.Equal("394", fighter.DraftGainExperience);
+    }
+
+    [Fact]
+    public async Task GainExperienceDraft_RejectsNonNumericAndNegativeValues()
+    {
+        var service = new RecordingService(Snapshot());
+        var viewModel = new SaveEditorViewModel(service);
+        await viewModel.SelectPathAsync(service.Snapshot.Path);
+        var fighter = viewModel.SelectedCharacter!;
+
+        fighter.DraftGainExperience = "-5";
+
+        Assert.Empty(viewModel.PendingChanges);
+        Assert.False(fighter.IsGainExperienceStaged);
+        Assert.Contains("0 or more", fighter.GainExperienceError, StringComparison.Ordinal);
+        Assert.Equal("394", fighter.DraftGainExperience);
+    }
+
+    [Fact]
     public async Task SelectedBagExpansion_PreviewsAndStagesOnlyThatFighter()
     {
         var service = new RecordingService(Snapshot());
@@ -90,8 +132,8 @@ public sealed class SaveEditorViewModelCharacterTests
     {
         const string json = """
             {"user":{"uid":9},"soul":{"uid":9,"cl":[],"chr":{"chrs":{"9":[
-              {"cid":"active","name":"Alice","state":"USE","type":"BAL","body":"BODY_M","grade":1,"limit_break":0,"hp":10,"total_exp":0,"money":0,"spirit":0,"bloodnium":0},
-              {"cid":"dead","name":"Morgan","state":"FREE","type":"COL","body":"BODY_F","grade":2,"limit_break":0,"hp":5,"total_exp":0,"money":0,"spirit":0,"bloodnium":0}
+              {"cid":"active","name":"Alice","state":"USE","type":"BAL","body":"BODY_M","grade":1,"limit_break":0,"hp":10,"gain_exp":394,"money":0,"spirit":0,"bloodnium":0},
+              {"cid":"dead","name":"Morgan","state":"FREE","type":"COL","body":"BODY_F","grade":2,"limit_break":0,"hp":5,"gain_exp":0,"money":0,"spirit":0,"bloodnium":0}
             ]},"slots":{"9":[{"slot":0,"cid":"active"},{"slot":1,"cid":"dead"}]}},"deathbag":{"9":{"active":[{"uid":9,"cid":"active","slot":0,"type":-1,"eid":"","site":"","arm_slot":-1}],"dead":[{"uid":9,"cid":"dead","slot":0,"type":-1,"eid":"","site":"","arm_slot":-1}]}},"skl":{"eqskl":{"9":[]}}},
             "bodyuser":{"9":[{"cid":"active","lvl":7,"hp":1,"str":1,"dex":1,"vit":1,"stm":1,"luk":1,"skill":0,"bag":0,"rage":0,"hp_bonus":0,"str_bonus":0,"dex_bonus":0,"vit_bonus":0,"stm_bonus":0,"luk_bonus":0}]},
             "part":{"pts":{"9":[]}},"item":{"items":[]},"mushroom":{"msrs":[]},"beast":{"bsts":[]},"diedchara":{"dchrs":{"9":[]}}
@@ -100,7 +142,9 @@ public sealed class SaveEditorViewModelCharacterTests
         var entries = new[]
         {
             new SaveValueEntry("/soul/chr/chrs/9/0/name", "/soul/chr/chrs/9/0/name", SaveValueType.String, "Alice"),
-            new SaveValueEntry("/soul/chr/chrs/9/1/name", "/soul/chr/chrs/9/1/name", SaveValueType.String, "Morgan")
+            new SaveValueEntry("/soul/chr/chrs/9/1/name", "/soul/chr/chrs/9/1/name", SaveValueType.String, "Morgan"),
+            new SaveValueEntry("/soul/chr/chrs/9/0/gain_exp", "/soul/chr/chrs/9/0/gain_exp", SaveValueType.Number, "394"),
+            new SaveValueEntry("/soul/chr/chrs/9/1/gain_exp", "/soul/chr/chrs/9/1/gain_exp", SaveValueType.Number, "0")
         };
         return new SaveFileSnapshot("C:\\character.sav", 2, 100, json.Length, 1, DateTime.UtcNow, new string('a', 64), entries, json);
     }
