@@ -57,12 +57,13 @@ public sealed class MapDataService : IMapDataService
             var elevatorStops = hasElevatorTables
                 ? await LoadElevatorStopsAsync(connection, cancellationToken)
                 : new Dictionary<string, (string CarId, string CarLabel)>(StringComparer.Ordinal);
+            var bossCatalog = await MapBossCatalog.LoadAsync(connection, tables, requestedLanguage, cancellationToken);
 
             var templates = new List<TowerMapTemplate>(TowerMapCatalog.TemplateIds.Count);
             foreach (var templateId in TowerMapCatalog.TemplateIds)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var nodes = await LoadNodesAsync(connection, templateId, floorInfo, areaNames, elevatorStops, cancellationToken);
+                var nodes = await LoadNodesAsync(connection, templateId, floorInfo, areaNames, elevatorStops, bossCatalog, cancellationToken);
                 var edges = await LoadEdgesAsync(connection, templateId, nodes, cancellationToken);
                 templates.Add(new TowerMapTemplate(templateId, nodes, edges));
             }
@@ -95,6 +96,7 @@ public sealed class MapDataService : IMapDataService
         IReadOnlyDictionary<string, (int FloorNumber, string NameKey)> floorInfo,
         IReadOnlyDictionary<string, string> areaNames,
         IReadOnlyDictionary<string, (string CarId, string CarLabel)> elevatorStops,
+        MapBossCatalog bossCatalog,
         CancellationToken cancellationToken)
     {
         var nodes = new List<MapNode>();
@@ -120,6 +122,7 @@ public sealed class MapDataService : IMapDataService
             var nameKey = floorInfo.TryGetValue(nodeKey, out info) ? info.NameKey : string.Empty;
             var stopId = isHead ? TowerMapCatalog.WaitingRoomStopId : Text(reader, 2);
             var car = ResolveElevatorCar(stopId, elevatorStops, isHead);
+            var boss = bossCatalog.Resolve(stageId, floorId, areaId);
             var node = new MapNode(
                 templateId,
                 stageId,
@@ -132,7 +135,16 @@ public sealed class MapDataService : IMapDataService
                 stopId,
                 car.CarId,
                 car.CarLabel,
-                reader.IsDBNull(4) ? 0d : reader.GetDouble(4));
+                reader.IsDBNull(4) ? 0d : reader.GetDouble(4))
+            {
+                MainBossMin = boss.MainBossMin,
+                MainBossMax = boss.MainBossMax,
+                MainBossTypes = boss.MainBossTypes,
+                IsForceManRoom = boss.IsForceManRoom,
+                ForceManGate = boss.ForceManGate,
+                IsBossArena = boss.IsBossArena,
+                ArenaBoss = boss.ArenaBoss
+            };
             nodes.Add(node);
         }
 

@@ -147,6 +147,60 @@ public sealed class MapViewModelTests
         Assert.Equal("B", viewModel.SelectedTemplate);
     }
 
+    [Fact]
+    public void BossInfo_SurfacesOnNodesRoutesListAndDetails()
+    {
+        var viewModel = new MapViewModel();
+        viewModel.SetResult(BossFixture());
+        viewModel.SelectedBand = MapViewModel.BandOptions.Single(option => option.Key == "S_MET");
+
+        // Roaming section-boss spawns still load, but are deliberately not badged or listed.
+        var roaming = viewModel.Nodes.Single(node => node.Node.AreaId == "MET_AREA_020");
+        Assert.True(roaming.Node.HasMainBoss);
+        Assert.Equal(string.Empty, roaming.BossBadge);
+        Assert.DoesNotContain("Boss spawn", roaming.ToolTipText, StringComparison.Ordinal);
+        var roamingRow = viewModel.AreaRows.Single(row => row.Node.AreaId == "MET_AREA_020");
+        Assert.Equal(string.Empty, roamingRow.BossLabel);
+        Assert.Equal(string.Empty, roamingRow.BossSummary);
+
+        var arena = viewModel.Nodes.Single(node => node.Node.AreaId == "MET_AREA_022");
+        Assert.Equal("BOSS", arena.BossBadge);
+        Assert.Contains("Boss arena: Max Sharp", arena.ToolTipText, StringComparison.Ordinal);
+
+        var forceMan = viewModel.Nodes.Single(node => node.Node.AreaId == "MET_AREA_023");
+        Assert.Equal("FFM", forceMan.BossBadge);
+        Assert.Contains("Four Force Men room · 440 KC (NORMAL)", forceMan.ToolTipText, StringComparison.Ordinal);
+
+        var plain = viewModel.Nodes.Single(node => node.Node.AreaId == "MET_AREA_010");
+        Assert.Equal(string.Empty, plain.BossBadge);
+        Assert.False(plain.HasBoss);
+
+        var miniRoute = viewModel.Edges.Single(edge => edge.Edge.Key == "KGF_MET_MIDBOSS00_CLEAR");
+        Assert.True(miniRoute.IsBossRoute);
+        Assert.Equal(MapBossRouteKind.BossClear, miniRoute.BossRoute.Kind);
+        Assert.Contains("Requires Max Sharp cleared", miniRoute.ToolTipText, StringComparison.Ordinal);
+
+        var triggerRoute = viewModel.Edges.Single(edge => edge.Edge.Gate == "KGF_MET_MB00_BTN_AREA_010_GOAL");
+        Assert.Equal(MapBossRouteKind.BossTrigger, triggerRoute.BossRoute.Kind);
+        Assert.Equal("Boss trigger: Max Sharp", triggerRoute.BossRoute.Label);
+
+        var areaRow = viewModel.AreaRows.Single(row => row.Node.AreaId == "MET_AREA_023");
+        Assert.Equal("FFM", areaRow.BossLabel);
+        Assert.Contains("Four Force Men room", areaRow.BossSummary, StringComparison.Ordinal);
+        viewModel.SelectArea(areaRow);
+        Assert.Contains("Bosses:", viewModel.SelectedDetails, StringComparison.Ordinal);
+        Assert.Contains("★ Four Force Men room", viewModel.SelectedDetails, StringComparison.Ordinal);
+
+        var plainRow = viewModel.AreaRows.Single(row => row.Node.AreaId == "MET_AREA_010");
+        viewModel.SelectArea(plainRow);
+        Assert.Contains("Bosses: none for this rotation", viewModel.SelectedDetails, StringComparison.Ordinal);
+
+        // Toggling the overlay only affects drawing; the loaded data stays available.
+        viewModel.ShowBossInfo = false;
+        Assert.False(viewModel.ShowBossInfo);
+        Assert.True(roaming.HasBoss);
+    }
+
     private static TowerMapLoadResult Fixture(string activeTemplate = "4HMA") => new(
         Templates:
         [
@@ -182,5 +236,48 @@ public sealed class MapViewModelTests
             .. common,
             new MapEdge(id, "MET_FLR_01", "MET_AREA_010", "MET_FLR_02", "MET_AREA_022", 1, "KGF_1", "KGF_2")
         ];
+    }
+
+    private static TowerMapLoadResult BossFixture()
+    {
+        var miniType = new MapBossType("MBOSS1", "hearing");
+        var bossType = new MapBossType("STAGE_BOSS1", "boss-hearing");
+        var gate = new MapBossGate("GATE_FFM_WS_01", 440, "4FORCEMEN.TXT_NORMAL", "NORMAL");
+
+        var nodes = new List<MapNode>
+        {
+            new("4HMA", "S_MET", TowerMapCatalog.HeadFloorId, 0, "", "", "", false, TowerMapCatalog.WaitingRoomStopId, TowerMapCatalog.MainElevatorCarId, "MAIN ELEVATOR", 0d),
+            new("4HMA", "S_MET", "MET_FLR_01", 1, "MET_AREA_010", "AREA_NAME.TXT_MET_0001", "IMA OKA", true, "", "", "", 0d),
+            new("4HMA", "S_MET", "MET_FLR_02", 2, "MET_AREA_020", "AREA_NAME.TXT_MET_0002", "WANOKI", true, "", "", "", 0d)
+            {
+                MainBossMin = 1,
+                MainBossMax = 1,
+                MainBossTypes = [miniType]
+            },
+            new("4HMA", "S_MET", "MET_FLR_02", 2, "MET_AREA_022", "AREA_NAME.TXT_MET_0003", "KITA", false, "", "", "", 4d)
+            {
+                IsBossArena = true,
+                ArenaBoss = bossType
+            },
+            new("4HMA", "S_MET", "MET_FLR_02", 2, "MET_AREA_023", "AREA_NAME.TXT_MET_0004", "SHINJUKU", false, "", "", "", 8d)
+            {
+                IsForceManRoom = true,
+                ForceManGate = gate
+            }
+        };
+        var edges = new List<MapEdge>
+        {
+            new("4HMA", "MET_FLR_01", "MET_AREA_010", "MET_FLR_02", "MET_AREA_020", 0, "KGF_MET_MIDBOSS00_CLEAR", ""),
+            new("4HMA", "MET_FLR_01", "MET_AREA_010", "MET_FLR_02", "MET_AREA_023", 0, "", "KGF_MET_MB00_BTN_AREA_010_GOAL")
+        };
+
+        return new TowerMapLoadResult(
+            [new TowerMapTemplate("4HMA", nodes, edges)],
+            "4HMA",
+            DateTimeOffset.UnixEpoch,
+            DateTimeOffset.FromUnixTimeSeconds(2_000_000),
+            [],
+            [],
+            []);
     }
 }

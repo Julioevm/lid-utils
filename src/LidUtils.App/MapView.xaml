@@ -47,6 +47,8 @@
                         ToolTip="Jump to the rotation the term calendar says is live now"/>
                 <CheckBox Content="Area labels" IsChecked="{Binding ShowAreaLabels}" VerticalAlignment="Center"
                           ToolTip="Show short area ids next to dots when they fit without overlapping"/>
+                <CheckBox Content="Bosses" IsChecked="{Binding ShowBossInfo}" VerticalAlignment="Center" Margin="12,0,0,0"
+                          ToolTip="Show boss markers: section boss arenas (red) and paid Four Force Men rooms (gold)"/>
             </StackPanel>
             <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0"
                         Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}">
@@ -125,11 +127,16 @@
                           EnableRowVirtualization="True"
                           VirtualizingPanel.IsVirtualizing="True"
                           VirtualizingPanel.VirtualizationMode="Recycling">
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Setter Property="ToolTip" Value="{Binding BossSummary}"/>
+                        </Style>
+                    </DataGrid.RowStyle>
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Floor" Binding="{Binding FloorLabel}" Width="48"/>
-                        <DataGridTextColumn Header="Area" Binding="{Binding AreaLabel}" Width="52"/>
+                        <DataGridTextColumn Header="Floor" Binding="{Binding FloorLabel}" Width="44"/>
+                        <DataGridTextColumn Header="Boss" Binding="{Binding BossLabel}" Width="58"/>
                         <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
-                        <DataGridTextColumn Header="Elv" Binding="{Binding ElevatorLabel}" Width="86"/>
+                        <DataGridTextColumn Header="Elv" Binding="{Binding ElevatorLabel}" Width="74"/>
                     </DataGrid.Columns>
                 </DataGrid>
                 <Border Grid.Row="4" Padding="10,9" CornerRadius="4" Background="#161B23"
@@ -154,6 +161,7 @@
             <Run Text="Drag the map to pan. Click an area dot or list row to inspect it. Filled dots are base corridors present in every rotation; hollow diamonds are side areas mounted only by the chosen rotation."/>
             <Run Text=" Coloured rings and matching route lines are elevator services — floors the same car stops at are joined even when no stairs or hatches connect them, and each car has its own colour. The Waiting Room (main elevator) is the hub at the base of the tower."/>
             <Run Text=" The themed bands are shown on a single vertical scale (F1 at the bottom). Heaven (F51–F451) is not included in this iteration." Foreground="#8A6F2F"/>
+            <Run Text=" Boss markers: " Foreground="#8A94A6"/><Run Text="BOSS" Foreground="#E4587A"/><Run Text=" = boss arena, " Foreground="#8A94A6"/><Run Text="FFM" Foreground="#E8C36A"/><Run Text=" = paid Four Force Men room. Boss-gated routes are drawn in the matching colour. Roaming section bosses are not badged." Foreground="#8A94A6"/>
         </TextBlock>
     </Grid>
 </UserControl>

@@ -47,9 +47,25 @@ public sealed class MapViewXamlSmokeTests
                 [
                     new MapNode("4HMA", "S_MET", "MET_FLR_01", 1, "MET_AREA_010", "AREA_NAME.TXT_MET_0001", "IMA OKA", true, "ELV_MAIN_MET_FLR_01", TowerMapCatalog.MainElevatorCarId, "MAIN ELEVATOR", 0),
                     new MapNode("4HMA", "S_MET", "MET_FLR_02", 2, "MET_AREA_020", "AREA_NAME.TXT_MET_0002", "WANOKI", true, "", "", "", 0)
+                    {
+                        MainBossMin = 1,
+                        MainBossMax = 1,
+                        MainBossTypes = [new MapBossType("MBOSS1", "hearing")]
+                    },
+                    new MapNode("4HMA", "S_MET", "MET_FLR_02", 2, "MET_AREA_022", "AREA_NAME.TXT_MET_0003", "KITA", false, "", "", "", 4)
+                    {
+                        IsForceManRoom = true,
+                        ForceManGate = new MapBossGate("GATE_FFM_WS_01", 440, "4FORCEMEN.TXT_NORMAL", "NORMAL")
+                    },
+                    new MapNode("4HMA", "S_MET", "MET_FLR_02", 2, "MET_AREA_023", "AREA_NAME.TXT_MET_0004", "SHINJUKU", false, "", "", "", 8)
+                    {
+                        IsBossArena = true,
+                        ArenaBoss = new MapBossType("STAGE_BOSS1", "boss-hearing")
+                    }
                 ],
                 [
-                    new MapEdge("4HMA", "MET_FLR_01", "MET_AREA_010", "MET_FLR_02", "MET_AREA_020", 0, "", "")
+                    new MapEdge("4HMA", "MET_FLR_01", "MET_AREA_010", "MET_FLR_02", "MET_AREA_020", 0, "KGF_MET_MIDBOSS00_CLEAR", ""),
+                    new MapEdge("4HMA", "MET_FLR_01", "MET_AREA_010", "MET_FLR_02", "MET_AREA_023", 0, "", "KGF_MET_MB00_BTN_AREA_010_GOAL")
                 ])
         ],
         ActiveTemplateId: "4HMA",

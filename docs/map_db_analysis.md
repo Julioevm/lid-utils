@@ -7,6 +7,8 @@ themed floor bands, how individual floors and their alternate layouts are modell
 connect to each other, and how (and how often) the layout changes. It ends with an assessment of
 whether that map data could be made **configurable** through LidUtils.
 
+Where bosses and mini-bosses are stored is covered separately in `map_boss_plan.md`.
+
 Source, opened read-only (`mode=ro`), no changes made:
 
 | | |

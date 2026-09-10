@@ -26,6 +26,7 @@ public sealed class MapViewModel : INotifyPropertyChanged
     private bool _isLoading;
     private int _geometryVersion;
     private bool _showAreaLabels;
+    private bool _showBossInfo = true;
 
     public MapViewModel(IMapDataService? service = null)
     {
@@ -119,6 +120,17 @@ public sealed class MapViewModel : INotifyPropertyChanged
         {
             if (!SetField(ref _showAreaLabels, value)) return;
             Rebuild();
+        }
+    }
+
+    /// <summary>Draws boss badges and boss-coloured routes on the canvas (data still loads when off).</summary>
+    public bool ShowBossInfo
+    {
+        get => _showBossInfo;
+        set
+        {
+            if (!SetField(ref _showBossInfo, value)) return;
+            RaiseLayoutChanged();
         }
     }
 
@@ -350,6 +362,7 @@ public sealed class MapViewModel : INotifyPropertyChanged
                     ToolTipText = BuildToolTip(template, node),
                     LabelText = DisplayName(node),
                     ShowLabel = ShowAreaLabels,
+                    BossBadge = BuildBossBadge(node),
                     ElevatorColorIndex = colorByCar.TryGetValue(node.ElevatorCarId, out var colorIndex) ? colorIndex : -1
                 });
             }
@@ -368,6 +381,7 @@ public sealed class MapViewModel : INotifyPropertyChanged
                 ToolTipText = BuildToolTip(template, headNode),
                 LabelText = TowerMapCatalog.WaitingRoomName,
                 ShowLabel = ShowAreaLabels,
+                BossBadge = BuildBossBadge(headNode),
                 ElevatorColorIndex = colorByCar.TryGetValue(headNode.ElevatorCarId, out var colorIndex) ? colorIndex : -1
             });
         }
@@ -398,6 +412,7 @@ public sealed class MapViewModel : INotifyPropertyChanged
                 Y2 = target.Y - directionY * (target.Radius + 3d),
                 IsGated = edge.IsGated,
                 IsHeadEdge = source.IsHead,
+                BossRoute = edge.BossRoute,
                 ToolTipText = BuildEdgeToolTip(template, edge)
             });
         }
@@ -494,12 +509,6 @@ public sealed class MapViewModel : INotifyPropertyChanged
         return band.StageIds.Contains(node.StageId, StringComparer.Ordinal);
     }
 
-    private static string ShortAreaLabel(string areaId)
-    {
-        var marker = areaId.LastIndexOf('_');
-        return marker >= 0 && marker < areaId.Length - 1 ? areaId[(marker + 1)..] : areaId;
-    }
-
     /// <summary>
     /// Rough pixel width of a 9.5px area label. Used to reserve horizontal space so a label never
     /// collides with the next dot; deliberately overestimates a little.
@@ -513,13 +522,46 @@ public sealed class MapViewModel : INotifyPropertyChanged
         {
             Node = node,
             FloorLabel = $"F{node.FloorNumber}",
-            AreaLabel = ShortAreaLabel(node.AreaId),
             Name = DisplayName(node),
             KindLabel = node.IsHead ? TowerMapCatalog.WaitingRoomName : node.IsBase ? "Base area" : "Side area",
             ElevatorLabel = string.IsNullOrWhiteSpace(node.ElevatorCarLabel) ? "—" : node.ElevatorCarLabel,
             OffsetLabel = node.OfsX.ToString("0.#"),
-            StageId = node.StageId
+            StageId = node.StageId,
+            BossLabel = BuildBossBadge(node),
+            BossSummary = string.Join("; ", BossDetailLines(node))
         };
+    }
+
+    /// <summary>Short boss marker shown on the map and in the area list (BOSS / FFM).</summary>
+    /// <remarks>
+    /// Roaming section-boss spawns are intentionally not badged: they cover most floors and add
+    /// more clutter than signal. The underlying data stays on <see cref="MapNode"/> for later use.
+    /// </remarks>
+    private static string BuildBossBadge(MapNode node)
+    {
+        var parts = new List<string>(2);
+        if (node.IsBossArena) parts.Add("BOSS");
+        if (node.IsForceManRoom) parts.Add("FFM");
+        return string.Join("·", parts);
+    }
+
+    /// <summary>Human-readable boss facts for one node, in tooltips and the details panel.</summary>
+    private static IEnumerable<string> BossDetailLines(MapNode node)
+    {
+        if (node.IsBossArena)
+        {
+            yield return node.ArenaBoss is null
+                ? "Section boss arena"
+                : $"Boss arena: {node.ArenaBoss.DisplayName}";
+        }
+
+        if (node.IsForceManRoom)
+        {
+            var gate = node.ForceManGate;
+            yield return gate is null
+                ? "Four Force Men room (paid boss fight)"
+                : $"Four Force Men room · {gate.FeeText} ({gate.DifficultyLabel})";
+        }
     }
 
     private string BuildToolTip(TowerMapTemplate template, MapNode node)
@@ -536,6 +578,7 @@ public sealed class MapViewModel : INotifyPropertyChanged
         };
         if (!string.IsNullOrWhiteSpace(node.ElevatorCarLabel))
             lines.Add($"Elevator: {node.ElevatorCarLabel} ({node.ElevatorStopId})");
+        lines.AddRange(BossDetailLines(node));
         var outCount = template.Edges.Count(edge => string.Equals(edge.Key2, node.Key, StringComparison.Ordinal));
         var inCount = template.Edges.Count(edge => string.Equals(edge.TargetKey, node.Key, StringComparison.Ordinal));
         lines.Add($"{outCount:N0} route(s) up · {inCount:N0} route(s) from below");
@@ -551,8 +594,16 @@ public sealed class MapViewModel : INotifyPropertyChanged
             : $"{ElevatorEdgeLabel(source)} → {ElevatorEdgeLabel(target)}";
         var notes = new List<string>();
         if (edge.Ci > 1) notes.Add($"climb span {edge.Ci}");
-        if (!string.IsNullOrWhiteSpace(edge.Key)) notes.Add($"key {edge.Key}");
-        if (!string.IsNullOrWhiteSpace(edge.Gate)) notes.Add($"gate {edge.Gate}");
+        var bossRoute = edge.BossRoute;
+        if (bossRoute.IsBoss)
+        {
+            notes.Add(bossRoute.Label);
+        }
+        else
+        {
+            if (!string.IsNullOrWhiteSpace(edge.Key)) notes.Add($"key {edge.Key}");
+            if (!string.IsNullOrWhiteSpace(edge.Gate)) notes.Add($"gate {edge.Gate}");
+        }
         return notes.Count == 0 ? text : text + " · " + string.Join(", ", notes);
     }
 
@@ -578,6 +629,12 @@ public sealed class MapViewModel : INotifyPropertyChanged
         lines.Add(string.IsNullOrWhiteSpace(node.ElevatorCarLabel)
             ? "Elevator service: none"
             : $"Elevator service: {node.ElevatorCarLabel} ({node.ElevatorStopId})");
+
+        var bossLines = BossDetailLines(node).ToArray();
+        lines.Add(bossLines.Length == 0
+            ? "Bosses: none for this rotation"
+            : "Bosses:");
+        foreach (var bossLine in bossLines) lines.Add("  ★ " + bossLine);
 
         var outgoing = template.Edges
             .Where(edge => string.Equals(edge.Key2, node.Key, StringComparison.Ordinal))
@@ -618,6 +675,15 @@ public sealed class MapViewModel : INotifyPropertyChanged
 
     private static string GateText(MapEdge edge)
     {
+        var route = edge.BossRoute;
+        if (route.IsBoss)
+        {
+            var raw = new List<string>();
+            if (!string.IsNullOrWhiteSpace(edge.Key)) raw.Add(edge.Key);
+            if (!string.IsNullOrWhiteSpace(edge.Gate)) raw.Add(edge.Gate);
+            return raw.Count == 0 ? route.Label : $"{route.Label} ({string.Join(", ", raw)})";
+        }
+
         var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(edge.Key)) parts.Add($"key {edge.Key}");
         if (!string.IsNullOrWhiteSpace(edge.Gate)) parts.Add($"gate {edge.Gate}");

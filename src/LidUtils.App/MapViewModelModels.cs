@@ -28,6 +28,13 @@ public sealed class MapNodeItem
     public bool HasElevator => !string.IsNullOrWhiteSpace(Node.ElevatorStopId);
     public string Key => Node.Key;
 
+    /// <summary>Short boss marker (BOSS / FFM) drawn above the node; empty when none.</summary>
+    public string BossBadge { get; init; } = string.Empty;
+
+    public bool HasForceManRoom => Node.IsForceManRoom;
+    public bool HasBossArena => Node.IsBossArena;
+    public bool HasBoss => Node.HasBoss;
+
     /// <summary>Elevator car serving this node (empty when the area has no elevator stop).</summary>
     public string ElevatorCarId => Node.ElevatorCarId;
 
@@ -62,7 +69,10 @@ public sealed class MapEdgeItem
     public required double Y2 { get; init; }
     public required bool IsGated { get; init; }
     public required bool IsHeadEdge { get; init; }
+    public required MapBossRoute BossRoute { get; init; }
     public required string ToolTipText { get; init; }
+
+    public bool IsBossRoute => BossRoute.IsBoss;
 }
 
 /// <summary>Read-only list row describing one area of the current rotation and band.</summary>
@@ -70,11 +80,13 @@ public sealed class MapAreaRow
 {
     public required MapNode Node { get; init; }
     public required string FloorLabel { get; init; }
-    public required string AreaLabel { get; init; }
     public required string Name { get; init; }
     public required string KindLabel { get; init; }
     public required string ElevatorLabel { get; init; }
     public required string OffsetLabel { get; init; }
     public required string StageId { get; init; }
+    public string BossLabel { get; init; } = string.Empty;
+    public string BossSummary { get; init; } = string.Empty;
+    public bool HasBoss => Node.HasBoss;
     public string Key => Node.Key;
 }

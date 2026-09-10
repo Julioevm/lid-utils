@@ -2,8 +2,8 @@
 
 Research notes for a possible **read-only map view** in LidUtils. Nothing here is implemented; this
 file records the data mapping, the display plan, and the caveats found while validating the idea
-against the installed `masters.db`. Companion document: `map_db_analysis.md` (what the database
-stores, in full).
+against the installed `masters.db`. Companion documents: `map_db_analysis.md` (what the database
+stores, in full) and `map_boss_plan.md` (boss/mini-boss overlay findings and plan).
 
 Labels follow the other analysis docs: **confirmed** = shown directly by the database;
 **inferred** = purpose is clear but untested in-game; **unknown** = not enough evidence.

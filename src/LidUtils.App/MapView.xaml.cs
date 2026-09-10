@@ -23,6 +23,13 @@ public partial class MapView : UserControl
     private static readonly Brush SelectionBrush = new SolidColorBrush(Colors.White);
     private static readonly Brush LabelBrush = new SolidColorBrush(Color.FromRgb(0xB9, 0xC2, 0xCF));
 
+    // Boss overlay: section boss arena (red), roaming section boss (purple), Four Force Men gates (gold).
+    private static readonly Brush BossBrush = new SolidColorBrush(Color.FromRgb(0xE4, 0x58, 0x7A));
+    private static readonly Brush MainBossBrush = new SolidColorBrush(Color.FromRgb(0xC4, 0x7B, 0xD9));
+    private static readonly Brush BossTriggerBrush = new SolidColorBrush(Color.FromRgb(0xF0, 0xA2, 0x4A));
+    private static readonly Brush BossBadgeBackground = new SolidColorBrush(Color.FromRgb(0x21, 0x18, 0x24));
+    private static readonly Brush BossBadgeTextBrush = new SolidColorBrush(Color.FromRgb(0xF3, 0xDD, 0xEA));
+
     // One palette slot per elevator service (car). Slot 0 is always the main tower elevator.
     private static readonly SolidColorBrush[] ElevatorPalette =
     [
@@ -186,7 +193,21 @@ public partial class MapView : UserControl
 
     private void DrawEdge(MapEdgeItem edge, Canvas canvas)
     {
-        var brush = edge.IsHeadEdge ? HeadEdgeBrush : edge.IsGated ? GatedEdgeBrush : EdgeBrush;
+        var kind = edge.BossRoute.Kind;
+        var brush = kind switch
+        {
+            MapBossRouteKind.BossArenaClear => BossBrush,
+            MapBossRouteKind.BossClear => MainBossBrush,
+            MapBossRouteKind.BossTrigger => BossTriggerBrush,
+            _ => edge.IsHeadEdge ? HeadEdgeBrush : edge.IsGated ? GatedEdgeBrush : EdgeBrush
+        };
+        var thickness = kind switch
+        {
+            MapBossRouteKind.BossArenaClear => 2.0,
+            MapBossRouteKind.BossClear => 1.8,
+            MapBossRouteKind.BossTrigger => 1.5,
+            _ => edge.IsHeadEdge ? 1.4 : edge.IsGated ? 1.2 : 1.6
+        };
         var line = new Line
         {
             X1 = edge.X1,
@@ -194,9 +215,15 @@ public partial class MapView : UserControl
             X2 = edge.X2,
             Y2 = edge.Y2,
             Stroke = brush,
-            StrokeThickness = edge.IsHeadEdge ? 1.4 : edge.IsGated ? 1.2 : 1.6
+            StrokeThickness = thickness
         };
-        if (edge.IsGated) line.StrokeDashArray = [3.0, 2.5];
+        DoubleCollection? dash = kind switch
+        {
+            MapBossRouteKind.BossClear => new DoubleCollection { 5.0, 2.0 },
+            MapBossRouteKind.BossTrigger => new DoubleCollection { 2.0, 2.0 },
+            _ => edge.IsGated ? new DoubleCollection { 3.0, 2.5 } : null
+        };
+        if (dash is not null) line.StrokeDashArray = dash;
         ToolTipService.SetToolTip(line, edge.ToolTipText);
         canvas.Children.Add(line);
         DrawArrowHead(edge.X1, edge.Y1, edge.X2, edge.Y2, brush, canvas);
@@ -326,6 +353,11 @@ public partial class MapView : UserControl
             canvas.Children.Add(ring);
         }
 
+        if (node.BossBadge.Length > 0 && (ViewModel?.ShowBossInfo ?? true))
+        {
+            DrawBossBadge(node, canvas);
+        }
+
         if (node.ShowLabel)
         {
             var label = new TextBlock
@@ -348,6 +380,36 @@ public partial class MapView : UserControl
         shape.Cursor = Cursors.Hand;
         shape.MouseLeftButtonDown += OnChipMouseLeftButtonDown;
         canvas.Children.Add(shape);
+    }
+
+    /// <summary>Small boss marker drawn above a node: BOSS and/or FFM.</summary>
+    private static void DrawBossBadge(MapNodeItem node, Canvas canvas)
+    {
+        const double width = 60d;
+        var border = node.HasBossArena ? BossBrush : ElevatorRingBrush;
+        var badge = new Border
+        {
+            Width = width,
+            Height = 13d,
+            CornerRadius = new CornerRadius(6),
+            Background = BossBadgeBackground,
+            BorderBrush = border,
+            BorderThickness = new Thickness(1),
+            IsHitTestVisible = false,
+            Child = new TextBlock
+            {
+                Text = node.BossBadge,
+                FontSize = 8d,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = BossBadgeTextBrush,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            }
+        };
+        ToolTipService.SetToolTip(badge, node.ToolTipText);
+        Canvas.SetLeft(badge, node.X - width / 2d);
+        Canvas.SetTop(badge, node.Y - node.Radius - 16d);
+        canvas.Children.Add(badge);
     }
 
     private void OnChipMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
