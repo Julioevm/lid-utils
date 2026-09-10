@@ -130,8 +130,11 @@ in the UI:
   `Shirokin` 32F, `Dainoba` 35F, `Takanowa` 38F) are tagged `rot1` → **`4HMA` only**. This matches
   the boss plan's finding that the paid `*_SMALLBOSS` rooms are `4HMA`-only, and matches the
   "Four Forcemen unleashed" tip on the Wednesday tab. **confirmed**
-- The app's `Today` shortcut needs no change: it selects a template, and the curated info then
-  follows that template's rotation group automatically.
+- The app's `Today` shortcut selects a template, and the curated info then follows that template's
+  rotation group automatically. **Correction (2026):** the term resolver originally picked the
+  *next* upcoming `expires` boundary, which showed one day ahead of the game. `master_area_template_term`
+  is a schedule of reset boundaries that *start* a term, so the shortcut now picks the most recent
+  boundary (`map_db_analysis.md` §5).
 
 ### 3.3 Join key and coverage
 

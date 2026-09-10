@@ -70,13 +70,15 @@ public sealed class MapDataService : IMapDataService
 
             var terms = await LoadTermsAsync(connection, cancellationToken);
             var active = ResolveActiveTerm(terms, nowUtc ?? DateTimeOffset.UtcNow);
+            var recent = active.Index < 0 ? [] : (IReadOnlyList<TowerTermEntry>)terms.Take(active.Index + 1).TakeLast(4).ToArray();
+            var upcoming = active.Index < 0 ? [] : (IReadOnlyList<TowerTermEntry>)terms.Skip(active.Index + 1).Take(4).ToArray();
             return new TowerMapLoadResult(
                 templates,
                 active.TemplateId,
                 active.StartUtc,
                 active.ExpiresUtc,
-                terms.Skip(Math.Max(0, terms.Count - 4)).ToArray(),
-                terms.Count == 0 ? [] : terms.SkipWhile(term => term.ExpiresUtc <= active.ExpiresUtc).Take(4).ToArray(),
+                recent,
+                upcoming,
                 warnings);
         }
         catch (OperationCanceledException)
@@ -341,23 +343,41 @@ public sealed class MapDataService : IMapDataService
         return result;
     }
 
-    private static (string TemplateId, DateTimeOffset StartUtc, DateTimeOffset ExpiresUtc) ResolveActiveTerm(
+    /// <summary>
+    /// Resolves which rotation the term calendar says is live at <paramref name="nowUtc"/>.
+    /// <para>
+    /// <c>master_area_template_term</c> is a schedule of reset boundaries: the row whose
+    /// <c>expires</c> value is <c>E</c> is the rotation the game switches to <b>at</b> the reset at
+    /// <c>E</c>, and it stays live until the next boundary. The game persists exactly that pairing
+    /// to the save (<c>soul.tmplid</c> + <c>soul.termid</c>), so the live term is the most recent
+    /// boundary at or before now — not the next upcoming one.
+    /// </para>
+    /// </summary>
+    private static (int Index, string TemplateId, DateTimeOffset StartUtc, DateTimeOffset ExpiresUtc) ResolveActiveTerm(
         IReadOnlyList<TowerTermEntry> terms,
         DateTimeOffset nowUtc)
     {
-        if (terms.Count == 0) return ("4HMA", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
-        for (var index = 0; index < terms.Count; index++)
+        if (terms.Count == 0) return (-1, "4HMA", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+
+        // Terms are ordered by their boundary; walk forward to the last one that has already started.
+        var index = 0;
+        for (var candidate = 1; candidate < terms.Count; candidate++)
         {
-            if (terms[index].ExpiresUtc <= nowUtc) continue;
-            var start = index == 0 ? DateTimeOffset.UnixEpoch : terms[index - 1].ExpiresUtc;
-            return (terms[index].TemplateId, start, terms[index].ExpiresUtc);
+            if (terms[candidate].ExpiresUtc > nowUtc) break;
+            index = candidate;
         }
 
-        // The calendar ends in the past (unusual); treat the last term as the active one.
-        var last = terms[^1];
-        var lastStart = terms.Count == 1 ? DateTimeOffset.UnixEpoch : terms[^2].ExpiresUtc;
-        return (last.TemplateId, lastStart, last.ExpiresUtc);
+        // The final row has no successor, so reuse the previous cadence for its displayed end.
+        var expires = index + 1 < terms.Count
+            ? terms[index + 1].ExpiresUtc
+            : terms[index].ExpiresUtc + LastCadence(terms);
+        return (index, terms[index].TemplateId, terms[index].ExpiresUtc, expires);
     }
+
+    private static TimeSpan LastCadence(IReadOnlyList<TowerTermEntry> terms) =>
+        terms.Count > 1 && terms[^1].ExpiresUtc > terms[^2].ExpiresUtc
+            ? terms[^1].ExpiresUtc - terms[^2].ExpiresUtc
+            : TimeSpan.FromDays(1);
 
     private static string ResolveAreaName(string nameKey, string areaId, IReadOnlyDictionary<string, string> areaNames)
     {

@@ -50,7 +50,8 @@ Edge metadata worth keeping for display: `ci` (a shortcut stair is `ci > 1`, e.g
   present; edges are arrows; base corridors solid, template-only side areas dashed; gated edges
   dotted/annotated.
 - Controls: template selector, band/floor-range filter, and a "today" shortcut that resolves the
-  active template from `master_area_template_term` (`expires` vs now) to show the current map.
+  active template from `master_area_template_term` (greatest `expires` boundary `<=` now; see
+  `map_db_analysis.md` §5) to show the current map.
 - Scope: MET/ARC/AMS/RFT/HZM are small (30–45 upward edges each) and easy to render. Heaven is
   large (≈750 upward edges for template D) and should render separately or by its `R00`–`R03`
   89-floor rotations.

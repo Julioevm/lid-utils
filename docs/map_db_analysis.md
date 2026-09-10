@@ -289,12 +289,23 @@ TERMID_1466244000  expires=1466244000 (2016-06-18) tmplid=C
 last term 2027-04-30
 ```
 
+**Boundary semantics (confirmed).** Despite the column name, `expires` is the reset boundary that
+**starts** the term: the row with `expires = E` is the rotation the game switches to at the reset
+at `E`, and it stays live until the next row's boundary. The game persists exactly this pairing to
+the save (`soul.tmplid` + `soul.termid`); checking the four bundled saves against the installed DB
+shows the save always holds the term whose boundary is the most recent reset, never the next
+upcoming one. So the live term at time `t` is the row with the greatest `expires <= t`.
+
 Facts (**confirmed**):
 
 - Terms are pre-generated from 2015-07-20 through **2027-04-30** — a shipped schedule, not
   something derived live from a server ping.
 - Cadence is **daily** (`expires` deltas of 86,400 s) for nearly the whole table (3,970 of 4,018
   gaps); the 2015 beta era used weekly gaps (47), with one 3-day transition.
+- Boundaries sit at **10:00 UTC = 19:00 JST**, the game's daily reset (JST is the schedule's home
+  timezone). A term therefore runs 19:00 JST → 19:00 JST, and the community labels it by the
+  weekday of the reset that introduces it (e.g. the Thursday 19:00 boundary loads the "Thursday"
+  rotation). This is why local calendar days outside JST straddle two rotations.
 - `tmplid` cycles through the five templates. Since 2024 the same pseudo-cyclic ~7-day macro
   sequence repeats (e.g. `C 4HMA D C 4HMA B A C …`), so a player sees `4HMA` and `C` about twice
   as often as `A`, `B`, `D`.
@@ -469,8 +480,8 @@ Related but separate tables:
 ## 9. Open questions and unknowns
 
 - `ci` (-1…6) and `dir` semantics in `master_area_connect_escalator`; `dlm`; `enable` column.
-- Whether the active template is resolved locally from `expires` or confirmed by the service, and
-  whether patching rewrites the term calendar.
+- Whether patching rewrites the term calendar, and whether the service can override the locally
+  resolved template (the boundary semantics itself is settled: see §5).
 - Which content set the client actually reads between `master_floor` and the `master_tmpfloor_*`
   split copies.
 - The role of the `R00`–`R03` Heaven copies vs the plain numbered chain, and the exact mapping of

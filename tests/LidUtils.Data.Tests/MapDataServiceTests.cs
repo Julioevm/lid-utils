@@ -52,10 +52,33 @@ public sealed class MapDataServiceTests
         var other = result.Templates.Single(template => template.Id == "A");
         Assert.Equal(2, other.Edges.Count); // rotation A does not mount the side route
 
-        // The term calendar: now = 1.5M, term 2M (template B) is live and started at 1M.
-        Assert.Equal("B", result.ActiveTemplateId);
+        // The term calendar starts a term at each boundary: now = 1.5M is inside the term introduced
+        // at 1M (template A), which runs until the next boundary at 2M.
+        Assert.Equal("A", result.ActiveTemplateId);
         Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1_000_000), result.ActiveTermStartUtc);
         Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(2_000_000), result.ActiveTermExpiresUtc);
+        Assert.Equal(new[] { "B", "C" }, result.UpcomingTerms.Select(term => term.TemplateId));
+        Assert.Equal(new[] { "A" }, result.RecentTerms.Select(term => term.TemplateId));
+    }
+
+    [Theory]
+    [InlineData(0, "A")]              // before the first boundary: fall back to the first term
+    [InlineData(999_999, "A")]
+    [InlineData(1_000_000, "A")]      // exactly on a boundary: the new term wins
+    [InlineData(1_999_999, "A")]
+    [InlineData(2_000_000, "B")]
+    [InlineData(2_999_999, "B")]
+    [InlineData(3_000_000, "C")]
+    [InlineData(3_500_000, "C")]      // after the last boundary: keep the last term
+    public async Task Load_ResolvesTheTermThatMostRecentlyStarted(long nowUnixSeconds, string expectedTemplate)
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "masters.db");
+        await CreateMapFixtureAsync(path);
+
+        var result = await new MapDataService().LoadAsync(path, nowUtc: DateTimeOffset.FromUnixTimeSeconds(nowUnixSeconds));
+
+        Assert.Equal(expectedTemplate, result.ActiveTemplateId);
     }
 
     [Fact]

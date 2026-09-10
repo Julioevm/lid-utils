@@ -238,7 +238,12 @@ public sealed record TowerMapTemplate(
     IReadOnlyList<MapNode> Nodes,
     IReadOnlyList<MapEdge> Edges);
 
-/// <summary>One entry of the pre-generated term calendar (master_area_template_term).</summary>
+/// <summary>
+/// One entry of the pre-generated term calendar (<c>master_area_template_term</c>).
+/// <paramref name="ExpiresUtc"/> is the reset boundary that <b>starts</b> the term: the template is
+/// live from that instant until the next entry's boundary (the DB column keeps the legacy name
+/// <c>expires</c>). The game stores the same pairing as <c>soul.tmplid</c>/<c>soul.termid</c>.
+/// </summary>
 public sealed record TowerTermEntry(string TemplateId, DateTimeOffset ExpiresUtc);
 
 /// <summary>
