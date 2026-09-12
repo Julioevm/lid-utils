@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using LidUtils.Core;
 using Microsoft.Data.Sqlite;
@@ -5,7 +6,7 @@ using Microsoft.Data.Sqlite;
 namespace LidUtils.Data;
 
 /// <summary>Reads master definitions using read-only SQLite connections.</summary>
-public sealed class ItemCatalogService : IItemCatalogService, IDecalCatalogService
+public sealed class ItemCatalogService : IItemCatalogService, IDecalCatalogService, IWeaponSkillCatalogService
 {
     private readonly object _snapshotGate = new();
     private CatalogSnapshot _snapshot = CatalogSnapshot.Empty;
@@ -127,6 +128,72 @@ public sealed class ItemCatalogService : IItemCatalogService, IDecalCatalogServi
         return new DecalCatalogLoadResult(definitions, warnings);
     }
 
+    public async Task<WeaponSkillCatalogLoadResult> LoadWeaponSkillsAsync(string databasePath, string? language = null,
+        CancellationToken cancellationToken = default)
+    {
+        var warnings = new List<string>();
+        var definitions = new List<WeaponSkillDefinition>();
+        if (string.IsNullOrWhiteSpace(databasePath) || !File.Exists(databasePath))
+            return new WeaponSkillCatalogLoadResult(definitions, ["The masters database path does not exist; weapon skill definitions are unavailable."]);
+
+        try
+        {
+            await using var connection = await OpenReadOnlyAsync(databasePath, cancellationToken);
+            if (!Has(await ColumnsAsync(connection, "master_expert_lvl_reward", cancellationToken), "ptarmtp", "lvl", "abp"))
+                return new WeaponSkillCatalogLoadResult(definitions,
+                    ["Table 'master_expert_lvl_reward' is missing required columns; weapon skill level caps are unavailable."]);
+            if (!Has(await ColumnsAsync(connection, "master_ptarm_type", cancellationToken), "id", "name"))
+                return new WeaponSkillCatalogLoadResult(definitions,
+                    ["Table 'master_ptarm_type' is missing the identifier or name column; weapon skill names are unavailable."]);
+
+            var required = new Dictionary<string, SortedDictionary<int, long>>(StringComparer.OrdinalIgnoreCase);
+            await using (var rewardCommand = connection.CreateCommand())
+            {
+                rewardCommand.CommandText = "SELECT \"ptarmtp\", \"lvl\", \"abp\" FROM \"master_expert_lvl_reward\" ORDER BY \"ptarmtp\", \"lvl\";";
+                await using var reader = await rewardCommand.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    var type = Text(reader, 0);
+                    if (string.IsNullOrWhiteSpace(type) ||
+                        !TryLong(reader, 1, out var level) ||
+                        !TryLong(reader, 2, out var abp) ||
+                        level < 2 || level > int.MaxValue)
+                        continue;
+                    if (!required.TryGetValue(type, out var levels)) required[type] = levels = [];
+                    levels[(int)level] = abp;
+                }
+            }
+
+            var hasText = Has(await ColumnsAsync(connection, "master_text", cancellationToken), "sct", "id", "lang", "txt");
+            if (!hasText) warnings.Add("Table 'master_text' is missing or incomplete; weapon skill keys are shown instead of localized names.");
+            var requestedLanguage = string.IsNullOrWhiteSpace(language) ? "int" : language.Trim();
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT {Quote("id")}, {LocalDisplay(Quote("name"), hasText)} FROM {Quote("master_ptarm_type")} ORDER BY {Quote("id")} COLLATE NOCASE;";
+            if (hasText) command.Parameters.AddWithValue("$language", requestedLanguage);
+            await using var nameReader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await nameReader.ReadAsync(cancellationToken))
+            {
+                var type = Text(nameReader, 0);
+                if (string.IsNullOrWhiteSpace(type)) continue;
+                if (!required.TryGetValue(type, out var levels) || levels.Count == 0) continue;
+                var defaultName = Text(nameReader, 1);
+                definitions.Add(new WeaponSkillDefinition(
+                    type,
+                    string.IsNullOrWhiteSpace(defaultName) ? type : defaultName,
+                    levels.Keys.Max(),
+                    levels));
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exception) when (exception is SqliteException or IOException or UnauthorizedAccessException)
+        {
+            warnings.Add($"Weapon skill definitions could not be read: {exception.Message}");
+        }
+
+        definitions.Sort((left, right) => string.Compare(left.WeaponType, right.WeaponType, StringComparison.OrdinalIgnoreCase));
+        return new WeaponSkillCatalogLoadResult(definitions, warnings);
+    }
+
     private static string TypeLabel(IReadOnlyDictionary<string, object?> values)
     {
         if (!values.TryGetValue("type", out var raw) || raw is null) return "";
@@ -231,6 +298,13 @@ public sealed class ItemCatalogService : IItemCatalogService, IDecalCatalogServi
     private static bool Has(IReadOnlySet<string> columns, params string[] names) => names.All(columns.Contains);
     private static bool SupportedEquipmentType(string? type) => type?.Trim().Split('_').LastOrDefault() is "ARM" or "HEAD" or "BODY" or "LEGS";
     private static string Text(SqliteDataReader reader, int index) => reader.IsDBNull(index) ? "" : Convert.ToString(reader.GetValue(index)) ?? "";
+    private static bool TryLong(SqliteDataReader reader, int index, out long value)
+    {
+        value = 0;
+        if (reader.IsDBNull(index)) return false;
+        try { value = Convert.ToInt64(reader.GetValue(index), CultureInfo.InvariantCulture); return true; }
+        catch (Exception exception) when (exception is FormatException or InvalidCastException or OverflowException) { return false; }
+    }
     private static string Name(SqliteDataReader reader, int index, string key, string fallback) => string.IsNullOrWhiteSpace(Text(reader, index)) ? (string.IsNullOrWhiteSpace(key) ? fallback : key) : Text(reader, index);
     private static string MushroomJson(string id) => JsonSerializer.Serialize(new { gettime = 0, msrid = id, eefcid = "", tefcid = "", posonce = 0, state = 0 });
     private static async Task<SqliteConnection> OpenReadOnlyAsync(string path, CancellationToken token) { var c = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.GetFullPath(path), Mode = SqliteOpenMode.ReadOnly, Cache = SqliteCacheMode.Private, Pooling = false, DefaultTimeout = 5 }.ToString()); await c.OpenAsync(token); return c; }

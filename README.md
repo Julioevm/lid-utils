@@ -11,6 +11,7 @@
 - Browse and search decoded save values; stage individual scalar-value changes and export the decoded JSON.
 - Manage account storage: add or replace supported catalogue items, clear slots, and expand capacity.
 - Browse fighters and edit supported profile fields, available XP, and allocated stats; add, replace, or clear Death Bag items and expand their slots.
+- Set the desired weapon skill (mastery) level for each weapon type; the matching accumulated ABP threshold is staged with it.
 - Browse, filter, grant, and adjust owned decals.
 - Manage VIP status and passes.
 - Review every pending edit together, undo individual changes, and restore earlier backups.

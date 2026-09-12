@@ -302,6 +302,15 @@ public partial class MainWindow : Window
         if (sender is Button { DataContext: DecalCollectionRow row }) _viewModel.SaveEditor.GrantDecal(row);
     }
 
+    private void OnUndoWeaponSkill(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: WeaponSkillRow row }) _viewModel.SaveEditor.UndoWeaponSkill(row);
+    }
+
+    private void OnMaxWeaponSkills(object sender, RoutedEventArgs e) => _viewModel.SaveEditor.MaxAllWeaponSkills();
+
+    private void OnUndoAllWeaponSkills(object sender, RoutedEventArgs e) => _viewModel.SaveEditor.UndoAllWeaponSkills();
+
     private void OnClearDecalSearch(object sender, RoutedEventArgs e)
     {
         _viewModel.SaveEditor.ClearDecalSearch();

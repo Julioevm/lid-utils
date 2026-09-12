@@ -53,7 +53,7 @@ public partial class App : Application
         var validator = new DatabaseValidator();
         var itemCatalogService = new ItemCatalogService();
         var bodyStatCatalogService = new BodyStatCatalogService();
-        var saveEditor = new SaveEditorViewModel(new SaveFileService(), saveCatalog, itemCatalogService, itemCatalogService, bodyStatCatalogService);
+        var saveEditor = new SaveEditorViewModel(new SaveFileService(), saveCatalog, itemCatalogService, itemCatalogService, bodyStatCatalogService, itemCatalogService);
         var viewModel = new MainWindowViewModel(
             new DatabaseDiscoveryService(),
             validator,

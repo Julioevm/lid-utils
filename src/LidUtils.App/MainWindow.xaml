@@ -310,6 +310,48 @@
                                 </Grid>
                             </Grid>
                         </TabItem>
+                        <TabItem Header="Skills">
+                            <Grid Margin="12">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="Weapon skills" FontSize="17" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding WeaponSkillSummary}" Foreground="#AEB7C6" Margin="0,4,0,0"/>
+                                        <TextBlock Text="{Binding WeaponSkillStatus}" Foreground="#FFB55A" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="Max all" Click="OnMaxWeaponSkills" IsEnabled="{Binding CanMaxWeaponSkills}" Margin="8,0,0,0" VerticalAlignment="Top" ToolTip="Set every weapon skill to its catalogued maximum level."/>
+                                    <Button Grid.Column="2" Content="Undo all" Click="OnUndoAllWeaponSkills" IsEnabled="{Binding HasStagedWeaponSkills}" Margin="8,0,0,0" VerticalAlignment="Top"/>
+                                </Grid>
+                                <DataGrid Grid.Row="2" ItemsSource="{Binding WeaponSkills}" IsReadOnly="False" IsEnabled="{Binding CanInteract}" AutoGenerateColumns="False" CanUserAddRows="False" EnableRowVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                                    <DataGrid.RowStyle>
+                                        <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                                            <Style.Triggers><DataTrigger Binding="{Binding IsStaged}" Value="True"><Setter Property="Background" Value="#6B5715"/></DataTrigger></Style.Triggers>
+                                        </Style>
+                                    </DataGrid.RowStyle>
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Weapon" Binding="{Binding DisplayName}" IsReadOnly="True" Width="*"/>
+                                        <DataGridTextColumn Header="Type" Binding="{Binding WeaponType}" IsReadOnly="True" Width="120"/>
+                                        <DataGridTextColumn Header="Current level" Binding="{Binding CurrentLevelText}" IsReadOnly="True" Width="100"/>
+                                        <DataGridTemplateColumn Header="Desired level" Width="150">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel>
+                                                        <TextBox Text="{Binding DraftLevel, UpdateSourceTrigger=PropertyChanged}" Padding="6,2" IsEnabled="{Binding IsEditable}" ToolTip="{Binding DetailsToolTip}"/>
+                                                        <TextBlock Text="{Binding ValidationError}" Foreground="#FF7770" TextWrapping="Wrap" Margin="0,3,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding ValidationError}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn Header="Max" Binding="{Binding MaximumLevelText}" IsReadOnly="True" Width="60"/>
+                                        <DataGridTextColumn Header="ABP" Binding="{Binding AbpText}" IsReadOnly="True" Width="110"/>
+                                        <DataGridTemplateColumn Header="" Width="72" IsReadOnly="True">
+                                            <DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="Undo" Click="OnUndoWeaponSkill"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="MinWidth" Value="0"/><Setter Property="Padding" Value="7,3"/><Setter Property="Margin" Value="0"/><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsStaged}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Button.Style></Button></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </TabItem>
                         <TabItem Header="All values">
                             <Grid Margin="12">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/></Grid.RowDefinitions>

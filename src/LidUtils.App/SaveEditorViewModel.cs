@@ -38,6 +38,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     private readonly IItemCatalogService? _itemCatalogService;
     private readonly IDecalCatalogService? _decalCatalogService;
     private readonly IBodyStatCatalogService? _bodyStatCatalogService;
+    private readonly IWeaponSkillCatalogService? _weaponSkillCatalogService;
     private readonly SaveChangeStagingService _staging = new();
     private readonly List<StorageOperation> _storageOperations = [];
     private readonly List<GrantDecalOperation> _decalGrants = [];
@@ -51,6 +52,9 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     private IReadOnlyList<DecalCollectionRow> _displayedDecals = [];
     private Dictionary<string, DecalDefinition> _decalDefinitions = new(StringComparer.Ordinal);
     private BodyStatCatalogLoadResult? _bodyStatCatalog;
+    private WeaponSkillCatalogLoadResult? _weaponSkillCatalog;
+    private WeaponSkillInventory? _weaponSkillInventory;
+    private IReadOnlyList<WeaponSkillRow> _weaponSkills = [];
     private DecalInventory? _decalInventory;
     private CharacterInventory? _characterInventory;
     private IReadOnlyList<CharacterRow> _allCharacters = [];
@@ -91,13 +95,15 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         SaveValueCatalog? catalog = null,
         IItemCatalogService? itemCatalogService = null,
         IDecalCatalogService? decalCatalogService = null,
-        IBodyStatCatalogService? bodyStatCatalogService = null)
+        IBodyStatCatalogService? bodyStatCatalogService = null,
+        IWeaponSkillCatalogService? weaponSkillCatalogService = null)
     {
         _saveFileService = saveFileService;
         _catalog = catalog ?? SaveValueCatalog.Empty;
         _itemCatalogService = itemCatalogService;
         _decalCatalogService = decalCatalogService;
         _bodyStatCatalogService = bodyStatCatalogService;
+        _weaponSkillCatalogService = weaponSkillCatalogService;
         ItemCatalog = new ItemCatalogViewModel(itemCatalogService);
         ItemCatalog.PropertyChanged += OnItemCatalogPropertyChanged;
     }
@@ -241,6 +247,26 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
             : _bodyStatCatalog.Warnings.Count == 0
                 ? $"{_bodyStatCatalog.Definitions.Count:N0} fighter stat cap definitions loaded from masters.db."
                 : $"{_bodyStatCatalog.Definitions.Count:N0} fighter stat cap definitions loaded with {_bodyStatCatalog.Warnings.Count:N0} warning(s).";
+
+    public IReadOnlyList<WeaponSkillRow> WeaponSkills
+    {
+        get => _weaponSkills;
+        private set => SetField(ref _weaponSkills, value);
+    }
+
+    public bool HasWeaponSkillInventory => _weaponSkillInventory is not null;
+    public bool HasStagedWeaponSkills => _weaponSkills.Any(row => row.IsStaged);
+    public bool CanMaxWeaponSkills => CanInteract && _weaponSkills.Any(row => row.IsEditable);
+    public string WeaponSkillSummary => _weaponSkillInventory is null
+        ? "Weapon skills are unavailable for this save."
+        : $"{_weaponSkills.Count:N0} weapon skill(s) · {_weaponSkills.Count(row => row.IsStaged):N0} staged";
+    public string WeaponSkillStatus => _weaponSkillInventory is null
+        ? "This save snapshot has no decoded weapon skill data."
+        : _weaponSkillCatalog is null || _weaponSkillCatalog.Definitions.Count == 0
+            ? "Validate masters.db in the Game Database section to edit weapon skill levels."
+            : _weaponSkillCatalog.Warnings.Count == 0
+                ? $"{_weaponSkillCatalog.Definitions.Count:N0} weapon skill definitions loaded from masters.db."
+                : $"{_weaponSkillCatalog.Definitions.Count:N0} weapon skill definitions loaded with {_weaponSkillCatalog.Warnings.Count:N0} warning(s).";
 
     public string DecalSearch
     {
@@ -441,6 +467,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(CanExportJson));
             OnPropertyChanged(nameof(CanRestoreSaveBackup));
             OnPropertyChanged(nameof(CanExpandCharacterBag));
+            OnPropertyChanged(nameof(CanMaxWeaponSkills));
             NotifyCharacterBagCommandStateChanged();
             NotifyStorageCommandStateChanged();
         }
@@ -495,6 +522,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         foreach (var field in WaitingRoomFields) field.SyncFromStaging(_staging);
         foreach (var field in AccountFields) field.SyncFromStaging(_staging);
         foreach (var decal in _allDecals) decal.SyncFromStaging(_staging);
+        foreach (var skill in _weaponSkills) skill.SyncFromStaging(_staging);
         foreach (var character in _allCharacters) character.SyncFromStaging(_staging);
         if (Vip is not null)
         {
@@ -798,6 +826,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
 
         await LoadDecalDefinitionsAsync(databasePath, cancellationToken);
         await LoadBodyStatDefinitionsAsync(databasePath, cancellationToken);
+        await LoadWeaponSkillDefinitionsAsync(databasePath, cancellationToken);
         RebuildCharacterRows();
     });
 
@@ -807,6 +836,135 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         if (_bodyStatCatalogService is not null && !string.IsNullOrWhiteSpace(databasePath) && File.Exists(databasePath))
             _bodyStatCatalog = await _bodyStatCatalogService.LoadBodyStatsAsync(databasePath, cancellationToken);
         OnPropertyChanged(nameof(FighterStatCatalogStatus));
+    }
+
+    /// <summary>Resolves weapon skill level caps and ABP costs from the validated masters.db.</summary>
+    private async Task LoadWeaponSkillDefinitionsAsync(string? databasePath, CancellationToken cancellationToken)
+    {
+        _weaponSkillCatalog = null;
+        if (_weaponSkillCatalogService is not null && !string.IsNullOrWhiteSpace(databasePath) && File.Exists(databasePath))
+            _weaponSkillCatalog = await _weaponSkillCatalogService.LoadWeaponSkillsAsync(databasePath, cancellationToken: cancellationToken);
+        RebuildWeaponSkillRows();
+        OnPropertyChanged(nameof(WeaponSkillStatus));
+    }
+
+    /// <summary>
+    /// Rebuilds weapon skill rows from the loaded save and the current definitions. Skills that
+    /// are absent from master_expert_lvl_reward have no level cap or ABP data and are hidden
+    /// rather than shown as read-only. Rows keep their staged drafts because each resyncs from
+    /// the staging service after the rebuild.
+    /// </summary>
+    private void RebuildWeaponSkillRows()
+    {
+        if (_weaponSkillInventory is null)
+        {
+            WeaponSkills = [];
+            return;
+        }
+
+        WeaponSkills = _weaponSkillInventory.Skills
+            .Select(entry => (Entry: entry, Definition: _weaponSkillCatalog?.Find(entry.WeaponType)))
+            .Where(item => item.Definition is not null)
+            .Select(item => new WeaponSkillRow(
+                item.Entry,
+                item.Definition,
+                ResolveScalarEntry(item.Entry.LevelPointer),
+                ResolveScalarEntry(item.Entry.AbpPointer),
+                StageWeaponSkillLevel))
+            .ToArray();
+        foreach (var row in WeaponSkills) row.SyncFromStaging(_staging);
+        OnPropertyChanged(nameof(WeaponSkillSummary));
+        OnPropertyChanged(nameof(HasStagedWeaponSkills));
+        OnPropertyChanged(nameof(CanMaxWeaponSkills));
+    }
+
+    private void LoadWeaponSkillInventory(SaveFileSnapshot snapshot)
+    {
+        _weaponSkillInventory = null;
+        if (!string.IsNullOrWhiteSpace(snapshot.Json))
+        {
+            try { _weaponSkillInventory = WeaponSkillInventory.Read(snapshot.Json); }
+            catch (InvalidOperationException) { _weaponSkillInventory = null; }
+        }
+
+        RebuildWeaponSkillRows();
+        OnPropertyChanged(nameof(HasWeaponSkillInventory));
+        OnPropertyChanged(nameof(WeaponSkillSummary));
+        OnPropertyChanged(nameof(WeaponSkillStatus));
+        OnPropertyChanged(nameof(HasStagedWeaponSkills));
+        OnPropertyChanged(nameof(CanMaxWeaponSkills));
+    }
+
+    private void StageWeaponSkillLevel(WeaponSkillRow row, string value)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        if (row.Definition is not { } definition || row.LevelEntry is not { } levelEntry || row.AbpEntry is not { } abpEntry)
+        {
+            row.ValidationError = "The weapon skill definition or save value is unavailable.";
+            return;
+        }
+
+        if (!int.TryParse((value ?? string.Empty).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var level) ||
+            level < 1 || level > definition.MaximumLevel)
+        {
+            _staging.Reset(levelEntry.Pointer);
+            _staging.Reset(abpEntry.Pointer);
+            row.ValidationError = $"Enter a whole number between 1 and {definition.MaximumLevel}.";
+            row.SyncFromStaging(_staging);
+            RefreshPendingChanges();
+            return;
+        }
+
+        row.ValidationError = string.Empty;
+        if (level == row.OriginalLevel)
+        {
+            _staging.Reset(levelEntry.Pointer);
+            _staging.Reset(abpEntry.Pointer);
+        }
+        else
+        {
+            _staging.Stage(levelEntry, level.ToString(CultureInfo.InvariantCulture));
+            if (definition.RequiredAbpForLevel(level) is { } requiredAbp)
+                _staging.Stage(abpEntry, requiredAbp.ToString(CultureInfo.InvariantCulture));
+            else
+                _staging.Reset(abpEntry.Pointer);
+        }
+
+        row.SyncFromStaging(_staging);
+        RefreshPendingChanges();
+    }
+
+    public void UndoWeaponSkill(WeaponSkillRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        _staging.Reset(row.LevelPointer);
+        _staging.Reset(row.AbpPointer);
+        row.ValidationError = string.Empty;
+        row.SyncFromStaging(_staging);
+        RefreshPendingChanges();
+    }
+
+    public void MaxAllWeaponSkills()
+    {
+        if (!CanMaxWeaponSkills) return;
+        foreach (var row in WeaponSkills)
+        {
+            if (!row.IsEditable || row.Definition is not { } definition) continue;
+            row.DraftLevel = definition.MaximumLevel.ToString(CultureInfo.InvariantCulture);
+        }
+        RefreshPendingChanges();
+    }
+
+    public void UndoAllWeaponSkills()
+    {
+        foreach (var row in WeaponSkills)
+        {
+            _staging.Reset(row.LevelPointer);
+            _staging.Reset(row.AbpPointer);
+            row.ValidationError = string.Empty;
+            row.SyncFromStaging(_staging);
+        }
+        RefreshPendingChanges();
     }
 
     /// <summary>Resolves decal definitions from the validated masters.db and refreshes loaded rows.</summary>
@@ -1536,6 +1694,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         SelectedCharacterSort = CharacterSortOptions[0];
         LoadCharacterInventory(snapshot);
         LoadDecalInventory(snapshot);
+        LoadWeaponSkillInventory(snapshot);
         SearchText = string.Empty;
         ApplyFilter();
         PendingChanges.Clear();
@@ -1583,6 +1742,8 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         _characterStatus = "Load a save to inspect fighters.";
         _allDecals = [];
         DisplayedDecals = [];
+        _weaponSkillInventory = null;
+        WeaponSkills = [];
         ChangeReviewRows.Clear();
         SaveBackups.Clear();
         SelectedSaveBackup = null;
@@ -1599,6 +1760,11 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasDecalInventory));
         OnPropertyChanged(nameof(DecalSummary));
         OnPropertyChanged(nameof(DecalStatus));
+        OnPropertyChanged(nameof(HasWeaponSkillInventory));
+        OnPropertyChanged(nameof(WeaponSkillSummary));
+        OnPropertyChanged(nameof(WeaponSkillStatus));
+        OnPropertyChanged(nameof(HasStagedWeaponSkills));
+        OnPropertyChanged(nameof(CanMaxWeaponSkills));
         OnPropertyChanged(nameof(HasCharacterInventory));
         OnPropertyChanged(nameof(CharacterSummary));
         OnPropertyChanged(nameof(CharacterStatus));
@@ -1617,6 +1783,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         foreach (var field in WaitingRoomFields) field.SyncFromStaging(_staging);
         foreach (var field in AccountFields) field.SyncFromStaging(_staging);
         foreach (var decal in _allDecals) decal.SyncFromStaging(_staging);
+        foreach (var skill in _weaponSkills) skill.SyncFromStaging(_staging);
         foreach (var character in _allCharacters)
         {
             character.SyncFromStaging(_staging);
@@ -1633,6 +1800,8 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(PendingOperationCount));
         OnPropertyChanged(nameof(CanApply));
         OnPropertyChanged(nameof(CanShowStagedChanges));
+        OnPropertyChanged(nameof(HasStagedWeaponSkills));
+        OnPropertyChanged(nameof(WeaponSkillSummary));
         RefreshChangeReviewRows();
     }
 
@@ -2171,6 +2340,79 @@ public sealed class CharacterStatAllocationRow : INotifyPropertyChanged
     }
 
     private static int Parse(string text) => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : 0;
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        return true;
+    }
+}
+
+public sealed class WeaponSkillRow : INotifyPropertyChanged
+{
+    private readonly Action<WeaponSkillRow, string> _draftChanged;
+    private string _draftLevel;
+    private string _validationError = string.Empty;
+    private bool _isStaged;
+
+    public WeaponSkillRow(
+        WeaponSkillEntry entry,
+        WeaponSkillDefinition? definition,
+        SaveValueEntry? levelEntry,
+        SaveValueEntry? abpEntry,
+        Action<WeaponSkillRow, string> draftChanged)
+    {
+        Entry = entry;
+        Definition = definition;
+        LevelEntry = levelEntry;
+        AbpEntry = abpEntry;
+        _draftLevel = entry.Level.ToString(CultureInfo.InvariantCulture);
+        _draftChanged = draftChanged;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    public WeaponSkillEntry Entry { get; }
+    public WeaponSkillDefinition? Definition { get; }
+    public SaveValueEntry? LevelEntry { get; }
+    public SaveValueEntry? AbpEntry { get; }
+    public string WeaponType => Entry.WeaponType;
+    public string LevelPointer => Entry.LevelPointer;
+    public string AbpPointer => Entry.AbpPointer;
+    public string DisplayName => Definition?.DisplayName ?? Entry.WeaponType;
+    public int OriginalLevel => Entry.Level;
+    public string CurrentLevelText => OriginalLevel.ToString(CultureInfo.InvariantCulture);
+    public long OriginalAbp => Entry.Abp;
+    public string AbpText => OriginalAbp.ToString(CultureInfo.InvariantCulture);
+    public int? MaximumLevel => Definition?.MaximumLevel;
+    public string MaximumLevelText => MaximumLevel?.ToString(CultureInfo.InvariantCulture) ?? "—";
+    public bool IsEditable => Definition is not null && LevelEntry is not null && AbpEntry is not null;
+    public string DetailsToolTip => string.Join(Environment.NewLine,
+        $"Weapon type: {WeaponType}",
+        $"Save values: {LevelPointer} and {AbpPointer}",
+        MaximumLevel is { } maximum
+            ? $"Level range: 1 to {maximum}. Editing sets the level and the matching accumulated ABP threshold."
+            : "Level range is unavailable until masters.db is validated.");
+
+    public string DraftLevel
+    {
+        get => _draftLevel;
+        set
+        {
+            if (!SetField(ref _draftLevel, value ?? string.Empty)) return;
+            _draftChanged(this, _draftLevel);
+        }
+    }
+    public string ValidationError { get => _validationError; set => SetField(ref _validationError, value); }
+    public bool IsStaged { get => _isStaged; set => SetField(ref _isStaged, value); }
+
+    public void SyncFromStaging(SaveChangeStagingService staging)
+    {
+        var change = staging.Get(LevelPointer);
+        SetField(ref _draftLevel, change?.ProposedValue ?? CurrentLevelText, nameof(DraftLevel));
+        IsStaged = change is not null;
+    }
+
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value)) return false;
