@@ -89,6 +89,33 @@ public sealed class SaveFileServiceTests
     }
 
     [Fact]
+    public async Task Apply_UsesConfiguredFolderAndPrunesToRetentionLimit()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var saveDirectory = Path.Combine(temporaryDirectory.Path, "source");
+        var customBackupRoot = Path.Combine(temporaryDirectory.Path, "custom-backups");
+        Directory.CreateDirectory(saveDirectory);
+        var savePath = Path.Combine(saveDirectory, "user.sav");
+        await File.WriteAllBytesAsync(savePath, CreateContainer("{\"coins\":0}"));
+        var storage = new BackupStorageSettings();
+        storage.Configure(customBackupRoot, 2);
+        var service = new SaveFileService(saveDirectory, isGameRunning: () => false, backupStorageSettings: storage);
+        var snapshot = await service.LoadAsync(savePath);
+
+        for (var value = 1; value <= 4; value++)
+        {
+            var coins = snapshot.Entries.Single(entry => entry.Pointer == "/coins");
+            var result = await service.ApplyAsync(snapshot,
+                [new StagedSaveChange(coins.Pointer, coins.DisplayPath, coins.Type, coins.Value, value.ToString())]);
+            snapshot = result.UpdatedSnapshot;
+        }
+
+        Assert.Equal(2, Directory.EnumerateFiles(storage.SaveBackupDirectory, "*.sav.bak").Count());
+        Assert.Equal(2, Directory.EnumerateFiles(storage.SaveBackupDirectory, "*.sav.bak.json").Count());
+        Assert.Empty(Directory.EnumerateFiles(customBackupRoot, "*.sav.bak", SearchOption.TopDirectoryOnly));
+    }
+
+    [Fact]
     public async Task Restore_ListsVerifiedBackupsAndCreatesASafetyBackup()
     {
         using var temporaryDirectory = new TemporaryDirectory();

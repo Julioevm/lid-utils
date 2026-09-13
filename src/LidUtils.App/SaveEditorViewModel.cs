@@ -1659,6 +1659,12 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         finally { IsApplying = false; }
     });
 
+    public void OnBackupLocationChanged()
+    {
+        SaveBackups.Clear();
+        SelectedSaveBackup = null;
+    }
+
     private async Task LoadCoreAsync(string path, CancellationToken cancellationToken)
     {
         Clear(path);

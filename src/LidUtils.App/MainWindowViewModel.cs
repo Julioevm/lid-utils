@@ -17,6 +17,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private readonly IPreferencesStore _preferencesStore;
     private readonly IReadOnlyDatabaseBrowser _browser;
     private readonly IDatabaseMaintenanceService _databaseMaintenance;
+    private readonly BackupStorageSettings? _backupStorageSettings;
     private readonly SettingsCatalog _catalog;
     private readonly IItemCatalogService? _itemCatalogService;
     private readonly ChangeStagingService _changeStaging = new();
@@ -53,13 +54,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         SaveEditorViewModel saveEditor,
         IItemCatalogService? itemCatalogService = null,
         IMapDataService? mapDataService = null,
-        MapAreaInfoCatalog? mapAreaInfoCatalog = null)
+        MapAreaInfoCatalog? mapAreaInfoCatalog = null,
+        BackupStorageSettings? backupStorageSettings = null)
     {
         _discoveryService = discoveryService;
         _validator = validator;
         _preferencesStore = preferencesStore;
         _browser = browser;
         _databaseMaintenance = databaseMaintenance;
+        _backupStorageSettings = backupStorageSettings;
         _catalog = catalog;
         _itemCatalogService = itemCatalogService;
         SaveEditor = saveEditor;
@@ -159,6 +162,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         !SourceDatabaseChanged &&
         !IsBusy;
     public int DatabaseBackupRetentionCount => NormalizeRetention(_preferences.DatabaseBackupRetentionCount);
+    public string BackupFolderPath => string.IsNullOrWhiteSpace(_preferences.BackupRootPath)
+        ? BackupStorageSettings.DefaultRootDirectory
+        : Path.GetFullPath(_preferences.BackupRootPath);
+    public string DefaultBackupFolderPath => $"Default: {BackupStorageSettings.DefaultRootDirectory}";
+    public string BackupFolderMode => string.IsNullOrWhiteSpace(_preferences.BackupRootPath)
+        ? "Using the default folder. Database and save backups are stored in separate subfolders."
+        : "Using a custom folder. Existing backups are not moved automatically.";
     public DatabaseBackupRow? SelectedDatabaseBackup
     {
         get => _selectedDatabaseBackup;
@@ -209,6 +219,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             _preferences = await _preferencesStore.LoadAsync(cancellationToken);
             if (_preferences.DatabaseBackupRetentionCount is < 1 or > DatabaseMaintenanceService.MaximumBackupRetentionCount)
                 _preferences = _preferences with { DatabaseBackupRetentionCount = DatabaseMaintenanceService.DefaultBackupRetentionCount };
+            ConfigureBackupStorage();
             LoadPreferenceIds();
             SaveEditor.LoadFavoritePointers(_preferences.FavoriteSaveValuePointers ?? []);
             OnPreferencesChanged();
@@ -304,11 +315,35 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
 
         _preferences = _preferences with { DatabaseBackupRetentionCount = count };
+        ConfigureBackupStorage();
         OnPropertyChanged(nameof(DatabaseBackupRetentionCount));
         await SavePreferencesAsync();
         StatusTitle = "Backup limit saved";
-        StatusDetails = $"The newest {count:N0} database backup(s) will be kept globally after the next successful apply or restore.";
+        StatusDetails = $"The newest {count:N0} backup(s) of each type will be kept after the next successful apply or restore.";
         return true;
+    }
+
+    public async Task SetBackupFolderAsync(string? path)
+    {
+        if (!string.IsNullOrWhiteSpace(path) && !Directory.Exists(path))
+        {
+            StatusTitle = "Backup folder not found";
+            StatusDetails = $"The folder does not exist: {path}";
+            return;
+        }
+
+        _preferences = _preferences with
+        {
+            BackupRootPath = string.IsNullOrWhiteSpace(path) ? null : Path.GetFullPath(path)
+        };
+        ConfigureBackupStorage();
+        OnPreferencesChanged();
+        await SavePreferencesAsync();
+        DatabaseBackups.Clear();
+        SelectedDatabaseBackup = null;
+        SaveEditor.OnBackupLocationChanged();
+        StatusTitle = "Backup folder saved";
+        StatusDetails = $"New backups will be stored under {BackupFolderPath}. Existing backups were not moved.";
     }
 
     public Task ApplyDatabaseChangesAsync() => RunBusyAsync(async cancellationToken =>
@@ -725,7 +760,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(GameInstallPath));
         OnPropertyChanged(nameof(GameInstallDetails));
         OnPropertyChanged(nameof(DatabaseBackupRetentionCount));
+        OnPropertyChanged(nameof(BackupFolderPath));
+        OnPropertyChanged(nameof(DefaultBackupFolderPath));
+        OnPropertyChanged(nameof(BackupFolderMode));
     }
+
+    private void ConfigureBackupStorage() =>
+        _backupStorageSettings?.Configure(_preferences.BackupRootPath, DatabaseBackupRetentionCount);
 
     private async Task SavePreferencesAsync(CancellationToken cancellationToken = default)
     {

@@ -51,20 +51,22 @@ public partial class App : Application
         }
 
         var validator = new DatabaseValidator();
+        var backupStorageSettings = new BackupStorageSettings();
         var itemCatalogService = new ItemCatalogService();
         var bodyStatCatalogService = new BodyStatCatalogService();
-        var saveEditor = new SaveEditorViewModel(new SaveFileService(), saveCatalog, itemCatalogService, itemCatalogService, bodyStatCatalogService, itemCatalogService);
+        var saveEditor = new SaveEditorViewModel(new SaveFileService(backupStorageSettings: backupStorageSettings), saveCatalog, itemCatalogService, itemCatalogService, bodyStatCatalogService, itemCatalogService);
         var viewModel = new MainWindowViewModel(
             new DatabaseDiscoveryService(),
             validator,
             new JsonPreferencesStore(),
             new ReadOnlyDatabaseBrowser(),
-            new DatabaseMaintenanceService(validator),
+            new DatabaseMaintenanceService(validator, backupStorageSettings: backupStorageSettings),
             catalog,
             saveEditor,
             itemCatalogService,
             new MapDataService(),
-            mapAreaInfoCatalog);
+            mapAreaInfoCatalog,
+            backupStorageSettings);
 
         new MainWindow(viewModel).Show();
     }

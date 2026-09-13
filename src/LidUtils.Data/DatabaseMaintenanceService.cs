@@ -28,6 +28,7 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
 
     private readonly IDatabaseValidator _validator;
     private readonly string _backupRoot;
+    private readonly BackupStorageSettings? _backupStorageSettings;
     private readonly string _auditRoot;
     private readonly Func<bool> _isGameRunning;
 
@@ -35,7 +36,8 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
         IDatabaseValidator validator,
         string? backupRoot = null,
         string? auditRoot = null,
-        Func<bool>? isGameRunning = null)
+        Func<bool>? isGameRunning = null,
+        BackupStorageSettings? backupStorageSettings = null)
     {
         _validator = validator;
         _backupRoot = Path.GetFullPath(backupRoot ?? Path.Combine(
@@ -43,6 +45,7 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
             "LidUtils",
             "backups",
             "databases"));
+        _backupStorageSettings = backupStorageSettings;
         _auditRoot = Path.GetFullPath(auditRoot ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "LidUtils",
@@ -50,6 +53,8 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
             "databases"));
         _isGameRunning = isGameRunning ?? LetItDieProcessDetector.IsRunning;
     }
+
+    private string BackupRoot => _backupStorageSettings?.DatabaseBackupDirectory ?? _backupRoot;
 
     public async Task<DatabaseApplyResult> ApplyAsync(
         DatabaseFileMetadata loadedSource,
@@ -290,11 +295,11 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
         DatabaseBackupPurpose purpose,
         CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(_backupRoot);
+        Directory.CreateDirectory(BackupRoot);
         var id = Guid.NewGuid();
         var createdUtc = DateTime.UtcNow;
         var stem = Path.GetFileNameWithoutExtension(source.Path);
-        var backupPath = Path.Combine(_backupRoot,
+        var backupPath = Path.Combine(BackupRoot,
             $"{stem}_{createdUtc:yyyyMMdd_HHmmss_fff}_{source.DatabaseSha256[..8]}_{id.ToString("N")[..8]}.db.bak");
         var metadataPath = MetadataPath(backupPath);
 
@@ -342,7 +347,7 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
         DatabaseBackupInfo backup,
         CancellationToken cancellationToken)
     {
-        if (!IsUnderRoot(backup.BackupPath, _backupRoot) || !File.Exists(backup.BackupPath))
+        if (!IsUnderRoot(backup.BackupPath, BackupRoot) || !File.Exists(backup.BackupPath))
         {
             throw Error(DatabaseOperationError.BackupNotFound, "The selected database backup file is missing.");
         }
@@ -737,16 +742,16 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
 
     private async Task<IReadOnlyList<DatabaseBackupInfo>> LoadBackupMetadataAsync(CancellationToken cancellationToken)
     {
-        if (!Directory.Exists(_backupRoot)) return [];
+        if (!Directory.Exists(BackupRoot)) return [];
         var result = new List<DatabaseBackupInfo>();
-        foreach (var metadataPath in Directory.EnumerateFiles(_backupRoot, "*.db.bak.json", SearchOption.TopDirectoryOnly))
+        foreach (var metadataPath in Directory.EnumerateFiles(BackupRoot, "*.db.bak.json", SearchOption.TopDirectoryOnly))
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
                 await using var stream = new FileStream(metadataPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true);
                 var info = await JsonSerializer.DeserializeAsync<DatabaseBackupInfo>(stream, JsonOptions, cancellationToken);
-                if (info is not null && IsPlausibleMetadata(info) && IsUnderRoot(info.BackupPath, _backupRoot) && File.Exists(info.BackupPath) &&
+                if (info is not null && IsPlausibleMetadata(info) && IsUnderRoot(info.BackupPath, BackupRoot) && File.Exists(info.BackupPath) &&
                     PathsEqual(metadataPath, MetadataPath(info.BackupPath)))
                 {
                     result.Add(info);

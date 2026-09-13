@@ -13,12 +13,14 @@ public sealed class SaveFileService : ISaveFileService
 
     private readonly string _saveDirectory;
     private readonly string _backupRoot;
+    private readonly BackupStorageSettings? _backupStorageSettings;
     private readonly Func<bool> _isGameRunning;
 
     public SaveFileService(
         string? saveDirectory = null,
         string? backupRoot = null,
-        Func<bool>? isGameRunning = null)
+        Func<bool>? isGameRunning = null,
+        BackupStorageSettings? backupStorageSettings = null)
     {
         _saveDirectory = saveDirectory ?? DefaultSaveDirectory;
         _backupRoot = Path.GetFullPath(backupRoot ?? Path.Combine(
@@ -26,8 +28,13 @@ public sealed class SaveFileService : ISaveFileService
             "LidUtils",
             "backups",
             "saves"));
+        _backupStorageSettings = backupStorageSettings;
         _isGameRunning = isGameRunning ?? LetItDieProcessDetector.IsRunning;
     }
+
+    private string BackupRoot => _backupStorageSettings?.SaveBackupDirectory ?? _backupRoot;
+    private int BackupRetentionCount => _backupStorageSettings?.RetentionCount
+        ?? DatabaseMaintenanceService.DefaultBackupRetentionCount;
 
     public Task<IReadOnlyList<string>> DiscoverAsync(
         string? directory = null,
@@ -222,6 +229,7 @@ public sealed class SaveFileService : ISaveFileService
         }
 
         var updated = await LoadAsync(snapshot.Path, cancellationToken);
+        await PruneBackupsAsync(BackupRetentionCount, CancellationToken.None);
         return new SaveApplyResult(backupPath, updated);
     }
 
@@ -231,11 +239,11 @@ public sealed class SaveFileService : ISaveFileService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         cancellationToken.ThrowIfCancellationRequested();
-        if (!Directory.Exists(_backupRoot)) return [];
+        if (!Directory.Exists(BackupRoot)) return [];
 
         var normalizedSource = Path.GetFullPath(sourcePath);
         var backups = new List<SaveBackupInfo>();
-        foreach (var metadataPath in Directory.EnumerateFiles(_backupRoot, "*.sav.bak.json", SearchOption.TopDirectoryOnly))
+        foreach (var metadataPath in Directory.EnumerateFiles(BackupRoot, "*.sav.bak.json", SearchOption.TopDirectoryOnly))
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
@@ -328,6 +336,7 @@ public sealed class SaveFileService : ISaveFileService
             }
 
             var snapshot = await LoadAsync(normalizedSource, cancellationToken);
+            await PruneBackupsAsync(BackupRetentionCount, CancellationToken.None);
             return new SaveRestoreResult(safetyBackup, snapshot);
         }
         catch
@@ -348,13 +357,13 @@ public sealed class SaveFileService : ISaveFileService
     {
         var stem = Path.GetFileNameWithoutExtension(sourcePath);
         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss_fff");
-        var candidate = Path.Combine(_backupRoot, $"{stem}_{timestamp}_{sourceSha256[..8]}.sav.bak");
+        var candidate = Path.Combine(BackupRoot, $"{stem}_{timestamp}_{sourceSha256[..8]}.sav.bak");
         if (!File.Exists(candidate))
         {
             return candidate;
         }
 
-        return Path.Combine(_backupRoot, $"{stem}_{timestamp}_{sourceSha256[..8]}_{Guid.NewGuid():N}.sav.bak");
+        return Path.Combine(BackupRoot, $"{stem}_{timestamp}_{sourceSha256[..8]}_{Guid.NewGuid():N}.sav.bak");
     }
 
     private async Task<SaveBackupInfo> CreateVerifiedBackupAsync(
@@ -363,7 +372,7 @@ public sealed class SaveFileService : ISaveFileService
         SaveBackupPurpose purpose,
         CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(_backupRoot);
+        Directory.CreateDirectory(BackupRoot);
         var sourceSha256 = Convert.ToHexString(SHA256.HashData(expectedSource));
         var backupPath = CreateBackupPath(sourcePath, sourceSha256);
         try
@@ -414,6 +423,50 @@ public sealed class SaveFileService : ISaveFileService
         return backup;
     }
 
+    private async Task PruneBackupsAsync(int retentionCount, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!Directory.Exists(BackupRoot)) return;
+            var valid = new List<SaveBackupInfo>();
+            foreach (var metadataPath in Directory.EnumerateFiles(BackupRoot, "*.sav.bak.json", SearchOption.TopDirectoryOnly))
+            {
+                try
+                {
+                    var json = await File.ReadAllTextAsync(metadataPath, cancellationToken);
+                    var backup = JsonSerializer.Deserialize<SaveBackupInfo>(json);
+                    if (backup is not null && IsPlausibleBackupMetadata(backup) &&
+                        IsUnderBackupRoot(backup.BackupPath) && File.Exists(backup.BackupPath) &&
+                        PathsEqual(metadataPath, MetadataPath(backup.BackupPath)))
+                    {
+                        valid.Add(await RequireValidBackupAsync(backup, cancellationToken));
+                    }
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException or ArgumentException or InvalidOperationException)
+                {
+                    // Malformed or damaged artifacts are never deleted automatically.
+                }
+            }
+
+            foreach (var backup in valid.OrderByDescending(item => item.CreatedUtc).Skip(retentionCount))
+            {
+                try
+                {
+                    File.Delete(backup.BackupPath);
+                    File.Delete(MetadataPath(backup.BackupPath));
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    // Retention cleanup is best-effort and must not turn a verified write into a failure.
+                }
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Retention cleanup is best-effort and must not turn a verified write into a failure.
+        }
+    }
+
     private static async Task WriteBackupMetadataAsync(SaveBackupInfo backup, CancellationToken cancellationToken)
     {
         var metadataPath = MetadataPath(backup.BackupPath);
@@ -431,9 +484,9 @@ public sealed class SaveFileService : ISaveFileService
 
     private bool IsUnderBackupRoot(string path)
     {
-        var root = _backupRoot.EndsWith(Path.DirectorySeparatorChar)
-            ? _backupRoot
-            : _backupRoot + Path.DirectorySeparatorChar;
+        var root = BackupRoot.EndsWith(Path.DirectorySeparatorChar)
+            ? BackupRoot
+            : BackupRoot + Path.DirectorySeparatorChar;
         return Path.GetFullPath(path).StartsWith(root, StringComparison.OrdinalIgnoreCase);
     }
 

@@ -212,6 +212,25 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void OnChangeBackupFolder(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Select the folder for LET IT DIE Utility backups",
+            InitialDirectory = _viewModel.BackupFolderPath
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            await _viewModel.SetBackupFolderAsync(dialog.FolderName);
+        }
+    }
+
+    private async void OnUseDefaultBackupFolder(object sender, RoutedEventArgs e)
+    {
+        await _viewModel.SetBackupFolderAsync(null);
+    }
+
     private async void OnBrowseSave(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog

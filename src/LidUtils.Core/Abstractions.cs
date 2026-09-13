@@ -92,7 +92,8 @@ public sealed record AppPreferences(
     IReadOnlyList<string>? RecentlyViewedSettingIds = null,
     string? GameInstallPath = null,
     IReadOnlyList<string>? FavoriteSaveValuePointers = null,
-    int DatabaseBackupRetentionCount = 5);
+    int DatabaseBackupRetentionCount = 5,
+    string? BackupRootPath = null);
 
 public interface IPreferencesStore
 {

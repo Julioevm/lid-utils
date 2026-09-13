@@ -6,6 +6,32 @@ namespace LidUtils.Data.Tests;
 public sealed class DatabaseMaintenanceServiceTests
 {
     [Fact]
+    public async Task Apply_UsesConfiguredBackupFolder()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var databasePath = Path.Combine(temporaryDirectory.Path, "masters.db");
+        var customBackupRoot = Path.Combine(temporaryDirectory.Path, "custom-backups");
+        await CreateDatabaseAsync(databasePath);
+        var validator = new DatabaseValidator();
+        var loaded = await validator.ValidateAsync(databasePath);
+        Assert.True(loaded.IsValid, loaded.Message);
+        var storage = new BackupStorageSettings();
+        storage.Configure(customBackupRoot, 5);
+        var service = new DatabaseMaintenanceService(
+            validator,
+            auditRoot: Path.Combine(temporaryDirectory.Path, "audit"),
+            isGameRunning: () => false,
+            backupStorageSettings: storage);
+
+        var result = await service.ApplyAsync(loaded.Metadata!,
+            [Change("master_const_int", "COUNT", "10", "11", SettingValueType.Integer)], 5);
+
+        Assert.StartsWith(Path.GetFullPath(storage.DatabaseBackupDirectory),
+            Path.GetFullPath(result.Backup.BackupPath), StringComparison.OrdinalIgnoreCase);
+        Assert.True(File.Exists(result.Backup.BackupPath));
+    }
+
+    [Fact]
     public async Task ApplyWithTableChanges_UpdatesAnAdvancedTableRowByPrimaryKey()
     {
         using var temporaryDirectory = new TemporaryDirectory();

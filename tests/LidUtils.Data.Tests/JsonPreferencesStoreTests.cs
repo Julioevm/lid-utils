@@ -18,7 +18,8 @@ public sealed class JsonPreferencesStoreTests
             ["master_const_float:WORLD_SPEED", "master_const_int:PLAYER_HEALTH"],
             @"D:\SteamLibrary\steamapps\common\LET IT DIE",
             ["/soul/free_money"],
-            12));
+            12,
+            @"E:\LidUtils Backups"));
         var loaded = await store.LoadAsync();
 
         Assert.Equal(@"D:\Games\masters.db", loaded.LastDatabasePath);
@@ -27,6 +28,7 @@ public sealed class JsonPreferencesStoreTests
         Assert.Equal(@"D:\SteamLibrary\steamapps\common\LET IT DIE", loaded.GameInstallPath);
         Assert.Equal(["/soul/free_money"], loaded.FavoriteSaveValuePointers);
         Assert.Equal(12, loaded.DatabaseBackupRetentionCount);
+        Assert.Equal(@"E:\LidUtils Backups", loaded.BackupRootPath);
     }
 
     [Fact]
@@ -41,6 +43,7 @@ public sealed class JsonPreferencesStoreTests
 
         Assert.Null(loaded.LastDatabasePath);
         Assert.Equal(5, loaded.DatabaseBackupRetentionCount);
+        Assert.Null(loaded.BackupRootPath);
     }
 
     [Fact]
