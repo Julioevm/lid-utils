@@ -146,6 +146,49 @@ public sealed class SaveEditorViewModelStorageTests
     }
 
     [Fact]
+    public async Task SelectedSlotActionText_ReflectsWhetherTheSlotIsOccupied()
+    {
+        var viewModel = await CreateEditorAsync();
+
+        viewModel.SelectedStorageSlot = viewModel.StorageSlots.Single(slot => slot.Slot == 0);
+        Assert.Equal("Replace Item", viewModel.StorageSlotActionText);
+
+        viewModel.SelectedStorageSlot = viewModel.StorageSlots.Single(slot => slot.Slot == 1);
+        Assert.Equal("Add Item", viewModel.StorageSlotActionText);
+    }
+
+    [Fact]
+    public async Task AddStorageItems_FillsFreeSlotsWithoutReplacingOccupiedSlots()
+    {
+        var viewModel = await CreateEditorAsync();
+        viewModel.ItemCatalog.SetResult(new ItemCatalogLoadResult([Heal, Starter], []), "C:\\masters.db");
+        viewModel.ItemCatalog.SelectedItem = Heal;
+        viewModel.SelectedStorageExpansion = 10;
+        viewModel.StageStorageExpansion();
+        viewModel.StorageAddQuantityText = "3";
+
+        viewModel.StageAddStorageItems();
+
+        Assert.Equal("Localized Starter Part", viewModel.StorageSlots.Single(slot => slot.Slot == 0).ItemName);
+        Assert.Equal([1, 2, 3], viewModel.StorageSlots.Where(slot => slot.ItemName == Heal.DisplayName).Select(slot => slot.Slot).ToArray());
+        Assert.Equal(4, viewModel.PendingStorageOperations.Count);
+    }
+
+    [Fact]
+    public async Task AddStorageItems_RejectsAQuantityLargerThanTheFreeSpace()
+    {
+        var viewModel = await CreateEditorAsync();
+        viewModel.ItemCatalog.SetResult(new ItemCatalogLoadResult([Heal, Starter], []), "C:\\masters.db");
+        viewModel.ItemCatalog.SelectedItem = Heal;
+        viewModel.StorageAddQuantityText = "2";
+
+        viewModel.StageAddStorageItems();
+
+        Assert.Empty(viewModel.PendingStorageOperations);
+        Assert.Contains("1 free storage slot", viewModel.StorageCatalogStatus, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task FailedStorageOnlyApply_KeepsThePendingOperationForRetry()
     {
         var service = new RecordingSaveFileService(Snapshot(), throwOnApply: true);

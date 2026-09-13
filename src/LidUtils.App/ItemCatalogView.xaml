@@ -36,9 +36,6 @@
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Name" Binding="{Binding DisplayName}" Width="*"/>
                 <DataGridTextColumn Header="Category" Binding="{Binding CategoryLabel}" Width="120"/>
-                <DataGridTextColumn Header="Definition ID" Binding="{Binding DefinitionId}" Width="150"/>
-                <DataGridTextColumn Header="Source table" Binding="{Binding SourceTable}" Width="120"/>
-                <DataGridCheckBoxColumn Header="Template" Binding="{Binding IsTemplateSupported}" Width="70"/>
             </DataGrid.Columns>
         </DataGrid>
         <Border Grid.Row="4" Padding="10,8" CornerRadius="4" Background="#161B23" BorderBrush="#2A313D" BorderThickness="1">

@@ -227,7 +227,6 @@
                                 <StackPanel>
                                     <TextBlock Text="Account storage" FontSize="17" FontWeight="SemiBold"/>
                                     <TextBlock Text="{Binding StorageSummary}" Foreground="#AEB7C6" Margin="0,4,0,0"/>
-                                    <TextBlock Text="{Binding StorageCatalogStatus}" Foreground="#FFB55A" Margin="0,3,0,0" TextWrapping="Wrap"/>
                                 </StackPanel>
                                 <Grid Grid.Row="2">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -243,7 +242,11 @@
                                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="8"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                                         <TextBlock Text="Item catalog" FontWeight="SemiBold"/>
                                         <app:ItemCatalogView Grid.Row="2" DataContext="{Binding ItemCatalog}" IsEnabled="{Binding DataContext.CanInteract, RelativeSource={RelativeSource AncestorType={x:Type TabControl}}}"/>
-                                        <Button Grid.Row="3" Content="Use selected item" Click="OnAddOrReplaceStorageSlot" IsEnabled="{Binding CanSetStorageSlot}" Margin="0,8,0,0" HorizontalAlignment="Left"/>
+                                        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8,0,0">
+                                            <Button Content="{Binding StorageSlotActionText}" Click="OnAddOrReplaceStorageSlot" IsEnabled="{Binding CanSetStorageSlot}"/>
+                                            <Button Content="Add Items" Click="OnAddStorageItems" IsEnabled="{Binding CanAddStorageItems}" Margin="8,0,0,0" ToolTip="Add copies of the selected catalog item to free storage slots."/>
+                                            <TextBox Text="{Binding StorageAddQuantityText, UpdateSourceTrigger=PropertyChanged}" Width="56" Padding="8,5" Margin="8,0,0,0" VerticalContentAlignment="Center" ToolTip="Number of copies to add to free storage slots"/>
+                                        </StackPanel>
                                     </Grid>
                                 </Grid>
                             </Grid>

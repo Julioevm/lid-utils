@@ -87,6 +87,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     private bool _isApplying;
     private StorageInventory? _storageInventory;
     private StorageSlotRow? _selectedStorageSlot;
+    private string _storageAddQuantityText = "1";
     private int _selectedStorageExpansion = ExpandStorageOperation.AllowedSlotCounts[0];
     private SaveBackupRow? _selectedSaveBackup;
 
@@ -361,6 +362,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         {
             if (!SetField(ref _selectedStorageSlot, value)) return;
             NotifyStorageCommandStateChanged();
+            OnPropertyChanged(nameof(StorageSlotActionText));
         }
     }
     public ItemCatalogEntry? SelectedCatalogItem { get => ItemCatalog.SelectedItem; set => ItemCatalog.SelectedItem = value; }
@@ -375,6 +377,16 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         }
     }
     public string StorageExpansionButtonText => $"Add {SelectedStorageExpansion:N0} slots";
+    public string StorageSlotActionText => SelectedStorageSlot?.IsOccupied == true ? "Replace Item" : "Add Item";
+    public string StorageAddQuantityText
+    {
+        get => _storageAddQuantityText;
+        set
+        {
+            if (!SetField(ref _storageAddQuantityText, value)) return;
+            OnPropertyChanged(nameof(CanAddStorageItems));
+        }
+    }
     public string StorageCatalogStatus => ItemCatalog.Status;
     public string StorageSummary => _storageInventory is null
         ? "Storage is unavailable for this save."
@@ -442,6 +454,8 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     public bool CanInteract => !IsBusy;
     public bool CanOpenStoragePicker => CanInteract && HasStorageInventory && SelectedStorageSlot is not null && ItemCatalog.HasCatalog;
     public bool CanSetStorageSlot => CanOpenStoragePicker && ItemCatalog.HasSupportedSelection;
+    public bool CanAddStorageItems => CanInteract && HasStorageInventory && ItemCatalog.HasSupportedSelection &&
+        TryGetStorageAddQuantity(out var quantity) && StorageSlots.Count(slot => !slot.IsOccupied) >= quantity;
     public bool CanClearStorageSlot => CanInteract && HasStorageInventory && SelectedStorageSlot is not null;
     public bool CanExpandStorage => CanInteract && HasStorageInventory;
     public bool CanUndoStorageOperation => CanInteract && HasPendingStorageOperations;
@@ -1562,6 +1576,50 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         StageStorageOperation(new SetStorageSlotOperation(SelectedStorageSlot.Slot, template.Template));
     }
 
+    public void StageAddStorageItems()
+    {
+        if (IsBusy || _storageInventory is null || SelectedCatalogItem is null) return;
+        if (!TryGetStorageAddQuantity(out var quantity))
+        {
+            ItemCatalog.ShowStatus("Enter a whole number of items greater than zero.");
+            return;
+        }
+
+        var freeSlots = StorageSlots
+            .Where(slot => !slot.IsOccupied)
+            .OrderBy(slot => slot.Slot)
+            .Take(quantity)
+            .ToArray();
+        if (freeSlots.Length < quantity)
+        {
+            ItemCatalog.ShowStatus($"Only {freeSlots.Length:N0} free storage slot(s) are available.");
+            return;
+        }
+
+        var template = CreateTemplate(SelectedCatalogItem);
+        if (template?.Template is null)
+        {
+            ItemCatalog.ShowStatus(template?.Error ?? "The selected item cannot be constructed safely.");
+            return;
+        }
+
+        var additions = freeSlots
+            .Select(slot => (StorageOperation)new SetStorageSlotOperation(slot.Slot, template.Template))
+            .ToArray();
+        var candidate = _storageOperations.Concat(additions).ToArray();
+        if (!TryPreviewStorageOperations(candidate, out var error))
+        {
+            ItemCatalog.ShowStatus($"Items were not staged: {error}");
+            return;
+        }
+
+        _storageOperations.AddRange(additions);
+        RefreshStorageOperations();
+    }
+
+    private bool TryGetStorageAddQuantity(out int quantity) =>
+        int.TryParse(StorageAddQuantityText, NumberStyles.Integer, CultureInfo.CurrentCulture, out quantity) && quantity > 0;
+
     private ItemCatalogTemplateResult? CreateTemplate(ItemCatalogEntry entry)
     {
         if (_itemCatalogService is null) return null;
@@ -1969,6 +2027,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     private void NotifyStorageCommandStateChanged()
     {
         OnPropertyChanged(nameof(CanSetStorageSlot));
+        OnPropertyChanged(nameof(CanAddStorageItems));
         OnPropertyChanged(nameof(CanOpenStoragePicker));
         OnPropertyChanged(nameof(CanClearStorageSlot));
         OnPropertyChanged(nameof(CanExpandStorage));

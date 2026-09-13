@@ -355,6 +355,9 @@ public partial class MainWindow : Window
     private void OnAddOrReplaceStorageSlot(object sender, RoutedEventArgs e) =>
         _viewModel.SaveEditor.StageAddOrReplaceStorageSlot();
 
+    private void OnAddStorageItems(object sender, RoutedEventArgs e) =>
+        _viewModel.SaveEditor.StageAddStorageItems();
+
     private void OnSetStorageEquipment(object sender, RoutedEventArgs e)
     {
         var catalog = _viewModel.SaveEditor.ItemCatalog;
