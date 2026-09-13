@@ -390,6 +390,9 @@ public partial class MainWindow : Window
     private void OnExpandCharacterBag(object sender, RoutedEventArgs e) =>
         _viewModel.SaveEditor.StageCharacterDeathBagExpansion();
 
+    private void OnResetCharacterBag(object sender, RoutedEventArgs e) =>
+        _viewModel.SaveEditor.StageCharacterBagReset();
+
     private void OnSetCharacterBagItem(object sender, RoutedEventArgs e)
     {
         var catalog = _viewModel.SaveEditor.ItemCatalog;

@@ -128,6 +128,59 @@ public sealed class SaveEditorViewModelCharacterTests
         Assert.IsType<ExpandCharacterDeathBagOperation>(Assert.Single(service.StorageOperations));
     }
 
+    [Fact]
+    public async Task BagReset_StagesTheClassDefaultCapacity()
+    {
+        var snapshot = Snapshot();
+        var service = new RecordingService(snapshot);
+        var viewModel = new SaveEditorViewModel(service, bodyStatCatalogService: new BagCatalog());
+        await viewModel.SelectPathAsync(snapshot.Path);
+        var dbPath = Path.GetTempFileName();
+        try { await viewModel.ConfigureStorageCatalogAsync(dbPath); }
+        finally { File.Delete(dbPath); }
+        viewModel.SelectedCharacter = viewModel.DisplayedCharacters.Single(row => row.CharacterId == "active");
+
+        Assert.Equal(20, viewModel.CharacterBagDefault);
+        Assert.True(viewModel.CanResetCharacterBag);
+
+        viewModel.StageCharacterBagReset();
+
+        Assert.Equal(20, viewModel.SelectedCharacter!.BagCapacity);
+        var review = Assert.Single(viewModel.PendingStorageOperations);
+        Assert.Equal("Reset fighter Death Bag", review.Operation);
+        Assert.Contains("20", review.Details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BagReset_AddsTheVipBonusWhenVipIsActive()
+    {
+        var snapshot = VipSnapshot();
+        var service = new RecordingService(snapshot);
+        var viewModel = new SaveEditorViewModel(service, bodyStatCatalogService: new BagCatalog());
+        await viewModel.SelectPathAsync(snapshot.Path);
+        var dbPath = Path.GetTempFileName();
+        try { await viewModel.ConfigureStorageCatalogAsync(dbPath); }
+        finally { File.Delete(dbPath); }
+        viewModel.SelectedCharacter = viewModel.DisplayedCharacters.Single(row => row.CharacterId == "active");
+
+        Assert.True(viewModel.Vip!.IsActive);
+        Assert.Equal(30, viewModel.CharacterBagDefault);
+        Assert.True(viewModel.CanResetCharacterBag);
+        Assert.Contains("VIP", viewModel.CharacterBagDefaultText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BagReset_IsUnavailableWithoutAMastersCatalog()
+    {
+        var service = new RecordingService(Snapshot());
+        var viewModel = new SaveEditorViewModel(service);
+        await viewModel.SelectPathAsync(service.Snapshot.Path);
+
+        Assert.Null(viewModel.CharacterBagDefault);
+        Assert.False(viewModel.CanResetCharacterBag);
+        Assert.Contains("masters.db", viewModel.CharacterBagDefaultText, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static readonly ItemCatalogEntry Heal =
         new("IT_HEAL", "Localized Healing Potion", ItemCatalogCategory.Item, "master_item", true);
 
@@ -218,6 +271,31 @@ public sealed class SaveEditorViewModelCharacterTests
         return new SaveFileSnapshot("C:\\character.sav", 2, 100, json.Length, 1, DateTime.UtcNow, new string('a', 64), entries, json);
     }
 
+    private static SaveFileSnapshot VipSnapshot()
+    {
+        var expiry = DateTimeOffset.UtcNow.AddDays(30).ToUnixTimeSeconds().ToString();
+        var json = """
+            {"user":{"uid":9},"soul":{"uid":9,"cl":[],"chr":{"chrs":{"9":[
+              {"cid":"active","name":"Alice","state":"USE","type":"BAL","body":"BODY_M","grade":1,"limit_break":0,"hp":10,"gain_exp":0,"money":0,"spirit":0,"bloodnium":0}
+            ]},"slots":{"9":[{"slot":0,"cid":"active"}]}},"deathbag":{"9":{"active":[{"uid":9,"cid":"active","slot":0,"type":-1,"eid":"","site":"","arm_slot":-1}]}},"vip":{"flag":1,"expired_time":__EXPIRY__,"type":0,"pass_num":0,"oneday_pass_num":0,"last_use_day":0},"skl":{"eqskl":{"9":[]}}},
+            "bodyuser":{"9":[{"cid":"active","lvl":7,"hp":1,"str":1,"dex":1,"vit":1,"stm":1,"luk":1,"skill":0,"bag":0,"rage":0,"hp_bonus":0,"str_bonus":0,"dex_bonus":0,"vit_bonus":0,"stm_bonus":0,"luk_bonus":0}]},
+            "part":{"pts":{"9":[]}},"item":{"items":[]},"mushroom":{"msrs":[]},"beast":{"bsts":[]},"diedchara":{"dchrs":{"9":[]}}
+            }
+            """.Replace("__EXPIRY__", expiry, StringComparison.Ordinal);
+        var entries = new[]
+        {
+            new SaveValueEntry("/soul/chr/chrs/9/0/name", "/soul/chr/chrs/9/0/name", SaveValueType.String, "Alice"),
+            new SaveValueEntry("/soul/chr/chrs/9/0/gain_exp", "/soul/chr/chrs/9/0/gain_exp", SaveValueType.Number, "0"),
+            new SaveValueEntry("/soul/vip/flag", "/soul/vip/flag", SaveValueType.Number, "1"),
+            new SaveValueEntry("/soul/vip/expired_time", "/soul/vip/expired_time", SaveValueType.Number, expiry.ToString()),
+            new SaveValueEntry("/soul/vip/type", "/soul/vip/type", SaveValueType.Number, "0"),
+            new SaveValueEntry("/soul/vip/pass_num", "/soul/vip/pass_num", SaveValueType.Number, "0"),
+            new SaveValueEntry("/soul/vip/oneday_pass_num", "/soul/vip/oneday_pass_num", SaveValueType.Number, "0"),
+            new SaveValueEntry("/soul/vip/last_use_day", "/soul/vip/last_use_day", SaveValueType.Number, "0")
+        };
+        return new SaveFileSnapshot("C:\\vip-character.sav", 2, 100, json.Length, 1, DateTime.UtcNow, new string('a', 64), entries, json);
+    }
+
     private sealed class RecordingService(SaveFileSnapshot snapshot) : ISaveFileService
     {
         public SaveFileSnapshot Snapshot { get; } = snapshot;
@@ -234,6 +312,12 @@ public sealed class SaveEditorViewModelCharacterTests
             StorageOperations = storageOperations.ToArray();
             return Task.FromResult(new SaveApplyResult("C:\\backup.sav", Snapshot));
         }
+    }
+
+    private sealed class BagCatalog : IBodyStatCatalogService
+    {
+        public Task<BodyStatCatalogLoadResult> LoadBodyStatsAsync(string databasePath, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new BodyStatCatalogLoadResult([new BodyStatDefinition("BAL", 1, 0, 5, 20)], []));
     }
 
     private sealed class CatalogService : IItemCatalogService

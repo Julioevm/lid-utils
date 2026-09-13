@@ -42,6 +42,17 @@ public sealed record ExpandCharacterDeathBagOperation(string CharacterId, int Sl
 }
 
 /// <summary>
+/// Sets one owned fighter's Death Bag to an exact number of slot rows, growing or shrinking it to
+/// restore the class/grade default from master_body_detail (plus the VIP bonus when applicable).
+/// Shrinking never removes an occupied slot, so carried items are never silently dropped.
+/// </summary>
+public sealed record SetCharacterDeathBagCapacityOperation(string CharacterId, int SlotCount) : StorageOperation
+{
+    public const int MinimumRowsPerBag = 1;
+    public const int MaximumRowsPerBag = ExpandDeathBagsOperation.MaximumRowsPerBag;
+}
+
+/// <summary>
 /// Creates a player-owned item instance and places it in an existing Death Bag slot of one
 /// fighter. The materialized entity belongs to the active player, unlike account-storage items
 /// which are locker-owned, so an occupied slot is replaced only when its old entity is not

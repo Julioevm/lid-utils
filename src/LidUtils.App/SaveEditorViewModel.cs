@@ -237,6 +237,26 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     public string CharacterBagExpansionButtonText => $"Add {SelectedCharacterBagExpansion:N0} slots";
     public string CharacterBagLimitText =>
         $"Manual limit: {ExpandCharacterDeathBagOperation.MaximumRowsPerBag} slots · VIP may add 10 more, up to {ExpandDeathBagsOperation.MaximumRowsPerBag}.";
+    public int? CharacterBagDefault => ResolveCharacterBagDefault(SelectedCharacter);
+    public bool CanResetCharacterBag => CanInteract && CharacterBagDefault is { } target &&
+        SelectedCharacter is { } character && target != character.BagCapacity && CanResizeCharacterBag(character, target);
+    public string CharacterBagDefaultText
+    {
+        get
+        {
+            if (SelectedCharacter is not { } character)
+                return "Select a fighter to reset its Death Bag to the class default.";
+            if (_bodyStatCatalog is null)
+                return "Validate masters.db to resolve the fighter's class default.";
+            if (ResolveBodyDefinition(character.Character) is not { BagCapacity: { } capacity })
+                return $"No class default is available for {character.FighterType} grade {character.Grade}.";
+            var vip = IsVipEffectivelyActive();
+            var target = capacity + (vip ? SaveVipSection.BagSlotBonus : 0);
+            return vip
+                ? $"Reset to the {character.FighterType} grade {character.Grade} default of {capacity:N0} slots plus the {SaveVipSection.BagSlotBonus:N0}-slot VIP bonus ({target:N0} total)."
+                : $"Reset to the {character.FighterType} grade {character.Grade} default of {capacity:N0} slots (VIP inactive).";
+        }
+    }
     public string CharacterSummary => _characterInventory is null
         ? "Characters are unavailable for this save."
         : $"{DisplayedCharacters.Count:N0} of {_allCharacters.Count:N0} fighter(s) shown · player {_characterInventory.PlayerUid}";
@@ -850,6 +870,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         if (_bodyStatCatalogService is not null && !string.IsNullOrWhiteSpace(databasePath) && File.Exists(databasePath))
             _bodyStatCatalog = await _bodyStatCatalogService.LoadBodyStatsAsync(databasePath, cancellationToken);
         OnPropertyChanged(nameof(FighterStatCatalogStatus));
+        NotifyCharacterBagCommandStateChanged();
     }
 
     /// <summary>Resolves weapon skill level caps and ABP costs from the validated masters.db.</summary>
@@ -1099,6 +1120,17 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     }
 
     /// <summary>
+    /// Stages a structural resize that restores the selected fighter's Death Bag to its class and
+    /// grade default from master_body_detail, including the VIP bonus when VIP is active.
+    /// </summary>
+    public void StageCharacterBagReset()
+    {
+        if (IsBusy || SelectedCharacter is null) return;
+        if (!CanResetCharacterBag || CharacterBagDefault is not { } target) return;
+        StageStorageOperation(new SetCharacterDeathBagCapacityOperation(SelectedCharacter.CharacterId, target));
+    }
+
+    /// <summary>
     /// Materializes a catalog item into the selected fighter's Death Bag slot. Like the storage
     /// editor, the item instance is created from a validated catalog template; the difference is
     /// that the entity is owned by the active player rather than the account locker.
@@ -1331,18 +1363,51 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         _storageOperations.Any(operation => operation switch
         {
             ExpandCharacterDeathBagOperation expand => expand.CharacterId == characterId,
+            SetCharacterDeathBagCapacityOperation resize => resize.CharacterId == characterId,
             SetCharacterDeathBagSlotOperation set => set.CharacterId == characterId,
             ClearCharacterDeathBagSlotOperation clear => clear.CharacterId == characterId,
             _ => false
         });
 
-    private int? ResolveCharacterCap(CharacterRecord character)
+    private int? ResolveCharacterCap(CharacterRecord character) =>
+        ResolveBodyDefinition(character)?.ParameterLevelMaximum;
+
+    private BodyStatDefinition? ResolveBodyDefinition(CharacterRecord character)
     {
         if (_bodyStatCatalog is null ||
             !int.TryParse(character.Grade, NumberStyles.Integer, CultureInfo.InvariantCulture, out var grade) ||
             !int.TryParse(character.LimitBreak, NumberStyles.Integer, CultureInfo.InvariantCulture, out var limitBreak))
             return null;
-        return _bodyStatCatalog.Find(character.FighterType, grade, limitBreak)?.ParameterLevelMaximum;
+        return _bodyStatCatalog.Find(character.FighterType, grade, limitBreak);
+    }
+
+    private int? ResolveCharacterBagDefault(CharacterRow? character)
+    {
+        if (character is null || ResolveBodyDefinition(character.Character) is not { BagCapacity: { } capacity }) return null;
+        return capacity + (IsVipEffectivelyActive() ? SaveVipSection.BagSlotBonus : 0);
+    }
+
+    private static bool CanResizeCharacterBag(CharacterRow character, int target) =>
+        target >= character.BagCapacity ||
+        !character.DeathBag.Any(slot => slot.Slot >= target && slot.IsOccupied);
+
+    /// <summary>
+    /// Whether VIP is active once staged scalar changes are taken into account, so a default reset
+    /// reflects an activation that has been staged but not yet applied.
+    /// </summary>
+    private bool IsVipEffectivelyActive()
+    {
+        if (Vip is null) return false;
+        return ResolveStagedAmount("/soul/vip/flag") == 1 &&
+               ResolveStagedAmount("/soul/vip/expired_time") > DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    }
+
+    private long ResolveStagedAmount(string pointer)
+    {
+        if (_staging.Get(pointer) is { } change &&
+            long.TryParse(change.ProposedValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var staged))
+            return staged;
+        return ResolveNumberEntry(pointer) is { } entry ? ParseEntryAmount(entry.Value) : 0;
     }
 
     private SaveValueEntry? ResolveScalarEntry(string? pointer) =>
@@ -1866,6 +1931,7 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CanShowStagedChanges));
         OnPropertyChanged(nameof(HasStagedWeaponSkills));
         OnPropertyChanged(nameof(WeaponSkillSummary));
+        NotifyCharacterBagCommandStateChanged();
         RefreshChangeReviewRows();
     }
 
@@ -2039,6 +2105,9 @@ public sealed class SaveEditorViewModel : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(CanOpenCharacterBagPicker));
         OnPropertyChanged(nameof(CanClearCharacterBagSlot));
+        OnPropertyChanged(nameof(CanResetCharacterBag));
+        OnPropertyChanged(nameof(CharacterBagDefault));
+        OnPropertyChanged(nameof(CharacterBagDefaultText));
     }
 
     private IReadOnlyList<SaveNumericFieldRow> BuildFieldRows()
@@ -2552,6 +2621,7 @@ public sealed record StorageOperationReviewRow(string Operation, string Details)
         ExpandStorageOperation expand => new("Expand storage", $"Add {expand.SlotCount:N0} empty storage slots."),
         ExpandDeathBagsOperation expandBags => new("Expand Death Bags", $"Add {expandBags.RowsPerBag:N0} empty Death Bag slots to each owned fighter."),
         ExpandCharacterDeathBagOperation expandCharacterBag => new("Expand fighter Death Bag", $"Add {expandCharacterBag.SlotCount:N0} empty slots to fighter {expandCharacterBag.CharacterId}."),
+        SetCharacterDeathBagCapacityOperation setCharacterBagCapacity => new("Reset fighter Death Bag", $"Set fighter {setCharacterBagCapacity.CharacterId}'s Death Bag to {setCharacterBagCapacity.SlotCount:N0} slots."),
         SetCharacterDeathBagSlotOperation setBag => new("Add or replace fighter Death Bag slot", $"Fighter {setBag.CharacterId} slot {setBag.Slot:N0}: {setBag.Template.Name} ({setBag.Template.DefinitionId})."),
         ClearCharacterDeathBagSlotOperation clearBag => new("Clear fighter Death Bag slot", $"Remove the item reference from fighter {clearBag.CharacterId}'s Death Bag slot {clearBag.Slot:N0}."),
         ClearStorageSlotOperation clear => new("Clear storage slot", $"Remove the item reference from slot {clear.Slot:N0}."),

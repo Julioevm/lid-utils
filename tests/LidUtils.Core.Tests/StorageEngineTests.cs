@@ -364,6 +364,46 @@ public sealed class StorageEngineTests
     }
 
     [Fact]
+    public void Apply_ResizesFighterDeathBagToAnExactCapacity()
+    {
+        var shrunk = StorageEngine.Apply(CharacterSaveJson(), [new SetCharacterDeathBagCapacityOperation("fighter", 1)]);
+        var shrunkBag = JsonNode.Parse(shrunk)!["soul"]!["deathbag"]!["424242"]!["fighter"]!.AsArray();
+        Assert.Single(shrunkBag);
+        Assert.Equal(0, shrunkBag[0]!["slot"]!.GetValue<int>());
+        Assert.Equal(BagPartId, shrunkBag[0]!["eid"]!.GetValue<string>());
+
+        var grown = StorageEngine.Apply(shrunk, [new SetCharacterDeathBagCapacityOperation("fighter", 3)]);
+        var grownBag = JsonNode.Parse(grown)!["soul"]!["deathbag"]!["424242"]!["fighter"]!.AsArray();
+        Assert.Equal(3, grownBag.Count);
+        Assert.Equal(new[] { 0, 1, 2 }, grownBag.Select(row => row!["slot"]!.GetValue<int>()));
+        Assert.Equal(-1, grownBag[2]!["type"]!.GetValue<int>());
+        Assert.Equal(string.Empty, grownBag[2]!["eid"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void Apply_ResizeDeathBag_RefusesToDropAnOccupiedSlot()
+    {
+        var root = JsonNode.Parse(CharacterSaveJson())!.AsObject();
+        var bag = root["soul"]!["deathbag"]!["424242"]!["fighter"]!.AsArray();
+        bag[1]!["eid"] = "33333333-3333-3333-3333-333333333333";
+        bag[1]!["type"] = 0;
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => StorageEngine.Apply(root.ToJsonString(), [new SetCharacterDeathBagCapacityOperation("fighter", 1)]));
+        Assert.Contains("occupied", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(81)]
+    public void Apply_RejectsDeathBagResizeOutsideTheAllowedRowCounts(int slotCount)
+    {
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => StorageEngine.Apply(CharacterSaveJson(), [new SetCharacterDeathBagCapacityOperation("fighter", slotCount)]));
+        Assert.Contains("between", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Apply_SetsPlayerOwnedItemInDeathBagSlot_AndJoinsItIntoTheFighterBag()
     {
         var template = new StorageItemTemplate(3, "IT_HEAL", "Heal", "{\"itemid\":\"IT_HEAL\",\"gettime\":0}");
