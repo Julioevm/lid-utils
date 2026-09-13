@@ -82,7 +82,7 @@ public sealed class ItemCatalogViewModel : INotifyPropertyChanged
 
     public string Summary => _catalog is null
         ? "No item catalog loaded."
-        : $"{Items.Count:N0} of {_catalog.Entries.Count:N0} item definition(s)";
+        : $"{Items.Count:N0} of {_catalog.Entries.Count(IsVisibleCatalogEntry):N0} item definition(s)";
 
     public string SelectedItemName => SelectedItem?.DisplayName ?? "No item selected";
 
@@ -162,7 +162,7 @@ public sealed class ItemCatalogViewModel : INotifyPropertyChanged
         if (_catalog is not null)
         {
             var category = ParseCategory(SelectedCategory);
-            foreach (var item in _catalog.Search(SearchText, category))
+            foreach (var item in _catalog.Search(SearchText, category).Where(IsVisibleCatalogEntry))
             {
                 Items.Add(item);
             }
@@ -189,6 +189,16 @@ public sealed class ItemCatalogViewModel : INotifyPropertyChanged
         "Beasts" => ItemCatalogCategory.Beast,
         _ => null
     };
+
+    // RMAP and RMAP.UNKNOWN_RMAP are master-data placeholders shared by several rows,
+    // not player-facing item definitions. Keep them in the loaded result so existing
+    // save references can still be resolved, but never offer them in selection lists.
+    private static bool IsVisibleCatalogEntry(ItemCatalogEntry entry)
+    {
+        var displayName = entry.DisplayName.Trim();
+        return !displayName.Equals("RMAP", StringComparison.OrdinalIgnoreCase) &&
+            !displayName.Contains("UNKNOWN_RMAP", StringComparison.OrdinalIgnoreCase);
+    }
 
     private void NotifyCatalogStateChanged()
     {

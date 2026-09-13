@@ -14,6 +14,12 @@ public sealed class ItemCatalogViewModelTests
     private static readonly ItemCatalogEntry Scorpion =
         new("BST_SCORP", "Scorpion", ItemCatalogCategory.Beast, "master_beast", true);
 
+    private static readonly ItemCatalogEntry UnknownRandomMapItem =
+        new("IT_UNKNOWN", "RMAP.UNKNOWN_RMAP", ItemCatalogCategory.Item, "master_item", true);
+
+    private static readonly ItemCatalogEntry RandomMapItem =
+        new("IT_RMAP", "RMAP", ItemCatalogCategory.Item, "master_item", true);
+
     [Fact]
     public void SetResult_PopulatesAllEntriesAndSummary()
     {
@@ -68,6 +74,26 @@ public sealed class ItemCatalogViewModelTests
         Assert.Empty(viewModel.Items);
         Assert.Null(viewModel.SelectedItem);
         Assert.False(viewModel.HasSelection);
+    }
+
+    [Fact]
+    public void SetResult_HidesRandomMapPlaceholdersFromLists()
+    {
+        var viewModel = new ItemCatalogViewModel();
+        var result = new ItemCatalogLoadResult([Hammer, Potion, Fungus, Scorpion, UnknownRandomMapItem, RandomMapItem], []);
+
+        viewModel.SetResult(result, "C:\\masters.db");
+
+        Assert.DoesNotContain(UnknownRandomMapItem, viewModel.Items);
+        Assert.DoesNotContain(RandomMapItem, viewModel.Items);
+        Assert.Contains(UnknownRandomMapItem, viewModel.AllEntries);
+        Assert.Contains(RandomMapItem, viewModel.AllEntries);
+        Assert.Equal("4 of 4 item definition(s)", viewModel.Summary);
+
+        viewModel.SearchText = "RMAP";
+
+        Assert.Empty(viewModel.Items);
+        Assert.Equal("0 of 4 item definition(s)", viewModel.Summary);
     }
 
     [Fact]
