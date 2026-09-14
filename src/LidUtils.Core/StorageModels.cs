@@ -10,10 +10,10 @@ public sealed record StorageItemTemplate(
 
 public abstract record StorageOperation;
 
-/// <summary>Adds empty account-storage slots, capped at a total account-storage capacity of 2000.</summary>
+/// <summary>Adds empty account-storage slots, capped at a total account-storage capacity of 1500.</summary>
 public sealed record ExpandStorageOperation(int SlotCount = 10) : StorageOperation
 {
-    public const int MaxTotalSlots = 2000;
+    public const int MaxTotalSlots = 1500;
     public static readonly IReadOnlyList<int> AllowedSlotCounts = [10, 20, 50, 100];
 }
 

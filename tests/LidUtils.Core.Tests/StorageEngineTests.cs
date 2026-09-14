@@ -121,7 +121,7 @@ public sealed class StorageEngineTests
 
         var exception = Assert.Throws<InvalidOperationException>(
             () => StorageEngine.Apply(expanded, [new ExpandStorageOperation(10)]));
-        Assert.Contains("2,000", exception.Message);
+        Assert.Contains("1,500", exception.Message);
     }
 
     [Fact]
